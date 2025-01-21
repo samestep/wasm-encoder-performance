@@ -1,0 +1,14 @@
+[package]
+name = "wasm-encoder-performance"
+publish = false
+edition = "2021"
+
+[dependencies]
+wasm-encoder = "0.223"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "comparison"
+harness = false
