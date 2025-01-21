@@ -56,32 +56,34 @@ struct Tape {
 
 impl Tape {
     fn grow(self, f: &mut Fun, local: u32, bytes: i32) {
-        f.global_get(self.global);
-        f.local_tee(self.local);
-        f.i32_const(bytes + 65535);
-        f.i32_add();
-        f.i32_const(16);
-        f.i32_shr_u();
-        f.memory_size(self.memory);
-        f.i32_sub();
-        f.local_tee(local);
-        f.if_(wasm_encoder::BlockType::Empty);
-        f.local_get(local);
-        f.memory_grow(self.memory);
-        f.drop();
-        f.end();
-        f.local_get(self.local);
-        f.i32_const(bytes);
-        f.i32_add();
-        f.global_set(self.global);
+        f.sink()
+            .global_get(self.global)
+            .local_tee(self.local)
+            .i32_const(bytes + 65535)
+            .i32_add()
+            .i32_const(16)
+            .i32_shr_u()
+            .memory_size(self.memory)
+            .i32_sub()
+            .local_tee(local)
+            .if_(wasm_encoder::BlockType::Empty)
+            .local_get(local)
+            .memory_grow(self.memory)
+            .drop()
+            .end()
+            .local_get(self.local)
+            .i32_const(bytes)
+            .i32_add()
+            .global_set(self.global);
     }
 
     fn shrink(self, f: &mut Fun, bytes: i32) {
-        f.global_get(self.global);
-        f.i32_const(bytes);
-        f.i32_sub();
-        f.local_tee(self.local);
-        f.global_set(self.global);
+        f.sink()
+            .global_get(self.global)
+            .i32_const(bytes)
+            .i32_sub()
+            .local_tee(self.local)
+            .global_set(self.global);
     }
 }
 
@@ -94,14 +96,15 @@ fn func_control_store() -> Fun {
         local: i,
     }
     .grow(&mut f, n, 4);
-    f.local_get(i);
-    f.local_get(k);
-    f.i32_store(wasm_encoder::MemArg {
-        offset: 0,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.end();
+    f.sink()
+        .local_get(i)
+        .local_get(k)
+        .i32_store(wasm_encoder::MemArg {
+            offset: 0,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .end();
     f
 }
 
@@ -114,13 +117,14 @@ fn func_control_load() -> Fun {
         local: i,
     }
     .shrink(&mut f, 4);
-    f.local_get(i);
-    f.i32_load(wasm_encoder::MemArg {
-        offset: 0,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.end();
+    f.sink()
+        .local_get(i)
+        .i32_load(wasm_encoder::MemArg {
+            offset: 0,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .end();
     f
 }
 
@@ -133,24 +137,25 @@ fn func_f32_mul_fwd() -> Fun {
         local: i,
     }
     .grow(&mut f, n, 8);
-    f.local_get(i);
-    f.local_get(x);
-    f.f32_store(wasm_encoder::MemArg {
-        offset: 0,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.local_get(i);
-    f.local_get(y);
-    f.f32_store(wasm_encoder::MemArg {
-        offset: 4,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.local_get(x);
-    f.local_get(y);
-    f.f32_mul();
-    f.end();
+    f.sink()
+        .local_get(i)
+        .local_get(x)
+        .f32_store(wasm_encoder::MemArg {
+            offset: 0,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .local_get(i)
+        .local_get(y)
+        .f32_store(wasm_encoder::MemArg {
+            offset: 4,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .local_get(x)
+        .local_get(y)
+        .f32_mul()
+        .end();
     f
 }
 
@@ -167,25 +172,26 @@ fn func_f32_div_fwd() -> Fun {
         local: i,
     }
     .grow(&mut f, n, 8);
-    f.local_get(i);
-    f.local_get(y);
-    f.f32_store(wasm_encoder::MemArg {
-        offset: 0,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.local_get(i);
-    f.local_get(x);
-    f.local_get(y);
-    f.f32_div();
-    f.local_tee(z);
-    f.f32_store(wasm_encoder::MemArg {
-        offset: 4,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.local_get(z);
-    f.end();
+    f.sink()
+        .local_get(i)
+        .local_get(y)
+        .f32_store(wasm_encoder::MemArg {
+            offset: 0,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .local_get(i)
+        .local_get(x)
+        .local_get(y)
+        .f32_div()
+        .local_tee(z)
+        .f32_store(wasm_encoder::MemArg {
+            offset: 4,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .local_get(z)
+        .end();
     f
 }
 
@@ -198,24 +204,25 @@ fn func_f64_mul_fwd() -> Fun {
         local: i,
     }
     .grow(&mut f, n, 16);
-    f.local_get(i);
-    f.local_get(x);
-    f.f64_store(wasm_encoder::MemArg {
-        offset: 0,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.local_get(i);
-    f.local_get(y);
-    f.f64_store(wasm_encoder::MemArg {
-        offset: 8,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.local_get(x);
-    f.local_get(y);
-    f.f64_mul();
-    f.end();
+    f.sink()
+        .local_get(i)
+        .local_get(x)
+        .f64_store(wasm_encoder::MemArg {
+            offset: 0,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .local_get(i)
+        .local_get(y)
+        .f64_store(wasm_encoder::MemArg {
+            offset: 8,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .local_get(x)
+        .local_get(y)
+        .f64_mul()
+        .end();
     f
 }
 
@@ -232,25 +239,26 @@ fn func_f64_div_fwd() -> Fun {
         local: i,
     }
     .grow(&mut f, n, 16);
-    f.local_get(i);
-    f.local_get(y);
-    f.f64_store(wasm_encoder::MemArg {
-        offset: 0,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.local_get(i);
-    f.local_get(x);
-    f.local_get(y);
-    f.f64_div();
-    f.local_tee(z);
-    f.f64_store(wasm_encoder::MemArg {
-        offset: 8,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.local_get(z);
-    f.end();
+    f.sink()
+        .local_get(i)
+        .local_get(y)
+        .f64_store(wasm_encoder::MemArg {
+            offset: 0,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .local_get(i)
+        .local_get(x)
+        .local_get(y)
+        .f64_div()
+        .local_tee(z)
+        .f64_store(wasm_encoder::MemArg {
+            offset: 8,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .local_get(z)
+        .end();
     f
 }
 
@@ -263,23 +271,24 @@ fn func_f32_mul_bwd() -> Fun {
         local: i,
     }
     .shrink(&mut f, 8);
-    f.local_get(dz);
-    f.local_get(i);
-    f.f32_load(wasm_encoder::MemArg {
-        offset: 4,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.f32_mul();
-    f.local_get(dz);
-    f.local_get(i);
-    f.f32_load(wasm_encoder::MemArg {
-        offset: 0,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.f32_mul();
-    f.end();
+    f.sink()
+        .local_get(dz)
+        .local_get(i)
+        .f32_load(wasm_encoder::MemArg {
+            offset: 4,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .f32_mul()
+        .local_get(dz)
+        .local_get(i)
+        .f32_load(wasm_encoder::MemArg {
+            offset: 0,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .f32_mul()
+        .end();
     f
 }
 
@@ -296,25 +305,26 @@ fn func_f32_div_bwd() -> Fun {
         local: i,
     }
     .shrink(&mut f, 8);
-    f.local_get(dz);
-    f.local_get(i);
-    f.f32_load(wasm_encoder::MemArg {
-        offset: 0,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.f32_div();
-    f.local_tee(dx);
-    f.local_get(dx);
-    f.local_get(i);
-    f.f32_load(wasm_encoder::MemArg {
-        offset: 4,
-        align: 2,
-        memory_index: MEM_32_TAPE,
-    });
-    f.f32_neg();
-    f.f32_mul();
-    f.end();
+    f.sink()
+        .local_get(dz)
+        .local_get(i)
+        .f32_load(wasm_encoder::MemArg {
+            offset: 0,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .f32_div()
+        .local_tee(dx)
+        .local_get(dx)
+        .local_get(i)
+        .f32_load(wasm_encoder::MemArg {
+            offset: 4,
+            align: 2,
+            memory_index: MEM_32_TAPE,
+        })
+        .f32_neg()
+        .f32_mul()
+        .end();
     f
 }
 
@@ -327,23 +337,24 @@ fn func_f64_mul_bwd() -> Fun {
         local: i,
     }
     .shrink(&mut f, 16);
-    f.local_get(dz);
-    f.local_get(i);
-    f.f64_load(wasm_encoder::MemArg {
-        offset: 8,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.f64_mul();
-    f.local_get(dz);
-    f.local_get(i);
-    f.f64_load(wasm_encoder::MemArg {
-        offset: 0,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.f64_mul();
-    f.end();
+    f.sink()
+        .local_get(dz)
+        .local_get(i)
+        .f64_load(wasm_encoder::MemArg {
+            offset: 8,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .f64_mul()
+        .local_get(dz)
+        .local_get(i)
+        .f64_load(wasm_encoder::MemArg {
+            offset: 0,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .f64_mul()
+        .end();
     f
 }
 
@@ -360,24 +371,25 @@ fn func_f64_div_bwd() -> Fun {
         local: i,
     }
     .shrink(&mut f, 16);
-    f.local_get(dz);
-    f.local_get(i);
-    f.f64_load(wasm_encoder::MemArg {
-        offset: 0,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.f64_div();
-    f.local_tee(dx);
-    f.local_get(dx);
-    f.local_get(i);
-    f.f64_load(wasm_encoder::MemArg {
-        offset: 8,
-        align: 3,
-        memory_index: MEM_64_TAPE,
-    });
-    f.f64_neg();
-    f.f64_mul();
-    f.end();
+    f.sink()
+        .local_get(dz)
+        .local_get(i)
+        .f64_load(wasm_encoder::MemArg {
+            offset: 0,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .f64_div()
+        .local_tee(dx)
+        .local_get(dx)
+        .local_get(i)
+        .f64_load(wasm_encoder::MemArg {
+            offset: 8,
+            align: 3,
+            memory_index: MEM_64_TAPE,
+        })
+        .f64_neg()
+        .f64_mul()
+        .end();
     f
 }

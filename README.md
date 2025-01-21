@@ -4,21 +4,19 @@ Benchmarking [wasm-encoder](https://crates.io/crates/wasm-encoder) against an al
 
 ## Results
 
-On my 2020 M1 MacBook Pro, I see a roughly 30% difference in performance:
+On my 2020 M1 MacBook Pro, I see a 28% difference in performance:
 
 ```
 Encoding/Current/helpers
-                        time:   [3.0009 µs 3.0142 µs 3.0280 µs]
-                        change: [-3.6632% -2.0244% -0.6404%] (p = 0.01 < 0.05)
-                        Change within noise threshold.
-Found 3 outliers among 100 measurements (3.00%)
-  3 (3.00%) high mild
+                        time:   [2.9529 µs 3.0171 µs 3.1023 µs]
+                        change: [-1.9347% -0.7749% +0.6104%] (p = 0.27 > 0.05)
+                        No change in performance detected.
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high severe
 Encoding/Alternative/helpers
-                        time:   [2.3175 µs 2.3325 µs 2.3486 µs]
-                        change: [+0.7639% +2.0156% +3.0865%] (p = 0.00 < 0.05)
-                        Change within noise threshold.
-Found 1 outliers among 100 measurements (1.00%)
-  1 (1.00%) high mild
+                        time:   [2.3315 µs 2.3560 µs 2.3809 µs]
+                        change: [-0.5493% +0.4016% +1.2946%] (p = 0.40 > 0.05)
+                        No change in performance detected.
 ```
 
 ![violin plot](violin.png)
@@ -76,31 +74,34 @@ My _guess_ is that the compiler will generally not inline this function, so ther
 
 ## Alternative
 
-In [`src/encode.rs`](src/encode.rs) I've written a proof-of-concept implementation that instead splits each instruction encoding into its own function:
+In [`src/encode.rs`](src/encode.rs) and [`src/sink.rs`](src/sink.rs) I've written a proof-of-concept implementation that replaces the `instruction` method with a `sink` method returning an `InstructionSink`, which encodes each diffeent instruction in its own function like this:
 
 ```rust
-use wasm_encoder::{BlockType, Encode};
-
-pub struct Fun {
-    bytes: Vec<u8>,
+pub struct InstructionSink<'a> {
+    sink: &'a mut Vec<u8>,
 }
 
-impl Fun {
-    fn encode(&mut self, x: impl Encode) {
-        x.encode(&mut self.bytes);
+impl<'a> InstructionSink<'a> {
+    pub fn new(sink: &'a mut Vec<u8>) -> Self {
+        Self { sink }
     }
 
-    pub fn unreachable(&mut self) {
-        self.bytes.push(0x00);
+    // Control instructions.
+
+    pub fn unreachable(&mut self) -> &mut Self {
+        self.sink.push(0x00);
+        self
     }
 
-    pub fn nop(&mut self) {
-        self.bytes.push(0x01);
+    pub fn nop(&mut self) -> &mut Self {
+        self.sink.push(0x01);
+        self
     }
 
-    pub fn block(&mut self, bt: BlockType) {
-        self.bytes.push(0x02);
-        self.encode(bt);
+    pub fn block(&mut self, bt: BlockType) -> &mut Self {
+        self.sink.push(0x02);
+        bt.encode(self.sink);
+        self
     }
 
     // ...
@@ -113,13 +114,21 @@ Example usage:
 use crate::encode::Fun;
 
 let mut f = Fun::new();
-f.local_get(0);
-f.local_get(1);
-f.i32_add();
-f.end();
+f.sink()
+    .local_get(0)
+    .local_get(1)
+    .i32_add()
+    .end();
 ```
 
 As an aside, this also happens to result in more concise code.
+
+The contents of `src/sink.rs` are generated using a [script](src/main.rs) that parses [`src/code.rs`](src/code.rs), which itself is copied from [`src/core/code.rs` in the wasm-tools repo](https://github.com/bytecodealliance/wasm-tools/blob/6e9164c5db03892c9dc603ba1f783e84d0eacdd7/crates/wasm-encoder/src/core/code.rs#L1239-L3783). You can run it like this:
+
+```sh
+brew install sponge
+cargo run | sponge src/sink.rs
+```
 
 ## Usage
 

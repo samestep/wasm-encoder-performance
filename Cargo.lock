@@ -561,6 +561,7 @@ name = "wasm-encoder-performance"
 version = "0.0.0"
 dependencies = [
  "criterion",
+ "regex",
  "wasm-encoder",
 ]
 
