@@ -1,13 +1,16 @@
 use regex::Regex;
 
 fn main() {
-    println!("use wasm_encoder::{{BlockType, Catch, Encode, Handle, HeapType, MemArg, Ordering, RefType}};");
+    println!("use wasm_encoder::{{");
+    println!("    BlockType, Catch, Encode, Handle, HeapType, MemArg, Ordering, RefType, ValType,");
+    println!("}};");
     println!();
     println!("pub struct InstructionSink<'a> {{");
     println!("    sink: &'a mut Vec<u8>,");
     println!("}}");
     println!();
     println!("impl<'a> InstructionSink<'a> {{");
+    println!("    /// Create an instruction encoder pointing to the given byte sink.");
     println!("    pub fn new(sink: &'a mut Vec<u8>) -> Self {{");
     println!("        Self {{ sink }}");
     println!("    }}");
@@ -36,6 +39,7 @@ fn main() {
             let rest: &str = &caps[2];
             let snake = snakify(name);
             println!();
+            println!("    /// Encode [`Instruction::{name}`].");
             print!("    pub fn {snake}(&mut self");
             let more = if let Some(caps) = re_params.captures(rest) {
                 let params: &str = &caps[1];
@@ -119,7 +123,7 @@ fn param_type<'a>(name: &str, mut param: &'a str) -> (&'a str, &'static str) {
         "ls" => "&[u32]",
         "bt" => "BlockType",
         "heap_type" => "HeapType",
-        "m" | "mem" | "memarg" => "MemArg",
+        "m" | "memarg" => "MemArg",
         "ordering" => "Ordering",
         "from_ref_type" | "to_ref_type" => "RefType",
         "lanes" => "[u8; 16]",
@@ -153,8 +157,18 @@ fn param_type<'a>(name: &str, mut param: &'a str) -> (&'a str, &'static str) {
         | "table"
         | "table_index"
         | "tag_index"
-        | "ty"
         | "type_index" => "u32",
+        "mem" => match name {
+            "MemoryDiscard" | "MemoryFill" | "MemoryInit" => "u32",
+            _ => panic!("{name}"),
+        },
+        "ty" => match name {
+            "CallRef" | "ReturnCallRef" => "u32",
+            "RefNull" => "HeapType",
+            "TryTable" => "BlockType",
+            "TypedSelect" => "ValType",
+            _ => panic!("{name}"),
+        },
         "x" => match name {
             "F32Const" => "f32",
             "F64Const" => "f64",
