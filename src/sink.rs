@@ -868,36 +868,47 @@ where
     }
 }
 
+/// A Wasm _typeidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct TypeIdx(pub u32);
 
+/// A Wasm _funcidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct FuncIdx(pub u32);
 
+/// A Wasm _tableidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct TableIdx(pub u32);
 
+/// A Wasm _memidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct MemIdx(pub u32);
 
+/// A Wasm _tagidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct TagIdx(pub u32);
 
+/// A Wasm _globalidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct GlobalIdx(pub u32);
 
+/// A Wasm _elemidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct ElemIdx(pub u32);
 
+/// A Wasm _dataidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct DataIdx(pub u32);
 
+/// A Wasm _localidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct LocalIdx(pub u32);
 
+/// A Wasm _labelidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct LabelIdx(pub u32);
 
+/// A Wasm _fieldidx_.
 #[derive(Clone, Copy, Debug)]
 pub struct FieldIdx(pub u32);
 
@@ -973,6 +984,7 @@ impl From<MemIdx> for u32 {
     }
 }
 
+/// An encoder for Wasm instructions.
 pub struct InstructionSink<'a> {
     sink: &'a mut Vec<u8>,
 }
