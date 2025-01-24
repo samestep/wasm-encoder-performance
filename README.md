@@ -123,13 +123,13 @@ f.sink()
 
 As an aside, this also happens to result in more concise code.
 
-The contents of `src/sink.rs` were generated via [a script on commit `f6d6792`](https://github.com/samestep/wasm-encoder-performance/blob/f6d679295e138187b902d70d8b50ed84673ae94c/src/main.rs). Currently the script emits `generated.rs` which uses yet another strategy; you can run the generator like this:
+The files `src/variants.txt` and `src/encodings.txt` were manually adapted from [`crates/wasm-encoder/src/core/code.rs` in the wasm-tools repo](https://github.com/bytecodealliance/wasm-tools/blob/7530629a3a127a1429b4837a1b1632f11d3dfeea/crates/wasm-encoder/src/core/code.rs), and feed into a code generator script that you can run like this:
 
 ```sh
 cargo run
 ```
 
-The input files `src/variants.txt` and `src/encodings.txt` were manually adapted from [`crates/wasm-encoder/src/core/code.rs` in the wasm-tools repo](https://github.com/bytecodealliance/wasm-tools/blob/7530629a3a127a1429b4837a1b1632f11d3dfeea/crates/wasm-encoder/src/core/code.rs).
+This will emit `generated.rs`, which is then manually edited to produce `src/sink.rs`.
 
 ## Usage
 

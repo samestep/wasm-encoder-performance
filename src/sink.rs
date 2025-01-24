@@ -1,5 +1,5 @@
 use wasm_encoder::{
-    BlockType, Catch, Encode, Handle, HeapType, MemArg, Ordering, RefType, ValType,
+    BlockType, Catch, Encode, Handle, HeapType, Lane, MemArg, Ordering, RefType, ValType,
 };
 
 pub struct InstructionSink<'a> {
@@ -50,40 +50,6 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::Else`].
     pub fn else_(&mut self) -> &mut Self {
         self.sink.push(0x05);
-        self
-    }
-
-    /// Encode [`Instruction::Try`].
-    pub fn try_(&mut self, bt: BlockType) -> &mut Self {
-        self.sink.push(0x06);
-        bt.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::Catch`].
-    pub fn catch(&mut self, t: u32) -> &mut Self {
-        self.sink.push(0x07);
-        t.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::Throw`].
-    pub fn throw(&mut self, t: u32) -> &mut Self {
-        self.sink.push(0x08);
-        t.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::Rethrow`].
-    pub fn rethrow(&mut self, l: u32) -> &mut Self {
-        self.sink.push(0x09);
-        l.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::ThrowRef`].
-    pub fn throw_ref(&mut self) -> &mut Self {
-        self.sink.push(0x0A);
         self
     }
 
@@ -164,7 +130,6 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-
     /// Encode [`Instruction::ReturnCall`].
     pub fn return_call(&mut self, f: u32) -> &mut Self {
         self.sink.push(0x12);
@@ -180,6 +145,36 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
+    /// Encode [`Instruction::TryTable`].
+    pub fn try_table(&mut self, ty: BlockType, catches: &[Catch]) -> &mut Self {
+        self.sink.push(0x1f);
+        ty.encode(self.sink);
+        catches.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::Throw`].
+    pub fn throw(&mut self, t: u32) -> &mut Self {
+        self.sink.push(0x08);
+        t.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::ThrowRef`].
+    pub fn throw_ref(&mut self) -> &mut Self {
+        self.sink.push(0x0A);
+        self
+    }
+
+    // Deprecated exception-handling instructions
+
+    /// Encode [`Instruction::Try`].
+    pub fn try_(&mut self, bt: BlockType) -> &mut Self {
+        self.sink.push(0x06);
+        bt.encode(self.sink);
+        self
+    }
+
     /// Encode [`Instruction::Delegate`].
     pub fn delegate(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x18);
@@ -187,9 +182,23 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
+    /// Encode [`Instruction::Catch`].
+    pub fn catch(&mut self, t: u32) -> &mut Self {
+        self.sink.push(0x07);
+        t.encode(self.sink);
+        self
+    }
+
     /// Encode [`Instruction::CatchAll`].
     pub fn catch_all(&mut self) -> &mut Self {
         self.sink.push(0x19);
+        self
+    }
+
+    /// Encode [`Instruction::Rethrow`].
+    pub fn rethrow(&mut self, l: u32) -> &mut Self {
+        self.sink.push(0x09);
+        l.encode(self.sink);
         self
     }
 
@@ -204,22 +213,6 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::Select`].
     pub fn select(&mut self) -> &mut Self {
         self.sink.push(0x1B);
-        self
-    }
-
-    /// Encode [`Instruction::TypedSelect`].
-    pub fn typed_select(&mut self, ty: ValType) -> &mut Self {
-        self.sink.push(0x1c);
-        [ty].encode(self.sink);
-        self
-    }
-
-
-    /// Encode [`Instruction::TryTable`].
-    pub fn try_table(&mut self, ty: BlockType, catches: &[Catch]) -> &mut Self {
-        self.sink.push(0x1f);
-        ty.encode(self.sink);
-        catches.encode(self.sink);
         self
     }
 
@@ -257,20 +250,6 @@ impl<'a> InstructionSink<'a> {
     pub fn global_set(&mut self, g: u32) -> &mut Self {
         self.sink.push(0x24);
         g.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::TableGet`].
-    pub fn table_get(&mut self, table: u32) -> &mut Self {
-        self.sink.push(0x25);
-        table.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::TableSet`].
-    pub fn table_set(&mut self, table: u32) -> &mut Self {
-        self.sink.push(0x26);
-        table.encode(self.sink);
         self
     }
 
@@ -1293,7 +1272,6 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-
     /// Encode [`Instruction::I32TruncSatF32S`].
     pub fn i32_trunc_sat_f32_s(&mut self) -> &mut Self {
         self.sink.push(0xFC);
@@ -1352,6 +1330,13 @@ impl<'a> InstructionSink<'a> {
 
     // Reference types instructions.
 
+    /// Encode [`Instruction::TypedSelect`].
+    pub fn typed_select(&mut self, ty: ValType) -> &mut Self {
+        self.sink.push(0x1c);
+        [ty].encode(self.sink);
+        self
+    }
+
     /// Encode [`Instruction::RefNull`].
     pub fn ref_null(&mut self, ty: HeapType) -> &mut Self {
         self.sink.push(0xd0);
@@ -1384,7 +1369,7 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-    // GC instructions.
+    // GC types instructions.
 
     /// Encode [`Instruction::StructNew`].
     pub fn struct_new(&mut self, type_index: u32) -> &mut Self {
@@ -1529,7 +1514,11 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayCopy`].
-    pub fn array_copy(&mut self, array_type_index_dst: u32, array_type_index_src: u32) -> &mut Self {
+    pub fn array_copy(
+        &mut self,
+        array_type_index_dst: u32,
+        array_type_index_src: u32,
+    ) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x11);
         array_type_index_dst.encode(self.sink);
@@ -1588,11 +1577,15 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::BrOnCast`].
-    pub fn br_on_cast(&mut self, relative_depth: u32, from_ref_type: RefType, to_ref_type: RefType) -> &mut Self {
+    pub fn br_on_cast(
+        &mut self,
+        relative_depth: u32,
+        from_ref_type: RefType,
+        to_ref_type: RefType,
+    ) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x18);
-        let cast_flags =
-            (from_ref_type.nullable as u8) | ((to_ref_type.nullable as u8) << 1);
+        let cast_flags = (from_ref_type.nullable as u8) | ((to_ref_type.nullable as u8) << 1);
         self.sink.push(cast_flags);
         relative_depth.encode(self.sink);
         from_ref_type.heap_type.encode(self.sink);
@@ -1601,11 +1594,15 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::BrOnCastFail`].
-    pub fn br_on_cast_fail(&mut self, relative_depth: u32, from_ref_type: RefType, to_ref_type: RefType) -> &mut Self {
+    pub fn br_on_cast_fail(
+        &mut self,
+        relative_depth: u32,
+        from_ref_type: RefType,
+        to_ref_type: RefType,
+    ) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x19);
-        let cast_flags =
-            (from_ref_type.nullable as u8) | ((to_ref_type.nullable as u8) << 1);
+        let cast_flags = (from_ref_type.nullable as u8) | ((to_ref_type.nullable as u8) << 1);
         self.sink.push(cast_flags);
         relative_depth.encode(self.sink);
         from_ref_type.heap_type.encode(self.sink);
@@ -1667,12 +1664,25 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-    /// Encode [`Instruction::TableCopy`].
-    pub fn table_copy(&mut self, src_table: u32, dst_table: u32) -> &mut Self {
+    /// Encode [`Instruction::TableFill`].
+    pub fn table_fill(&mut self, table: u32) -> &mut Self {
         self.sink.push(0xfc);
-        self.sink.push(0x0e);
-        dst_table.encode(self.sink);
-        src_table.encode(self.sink);
+        self.sink.push(0x11);
+        table.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::TableSet`].
+    pub fn table_set(&mut self, table: u32) -> &mut Self {
+        self.sink.push(0x26);
+        table.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::TableGet`].
+    pub fn table_get(&mut self, table: u32) -> &mut Self {
+        self.sink.push(0x25);
+        table.encode(self.sink);
         self
     }
 
@@ -1692,11 +1702,12 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-    /// Encode [`Instruction::TableFill`].
-    pub fn table_fill(&mut self, table: u32) -> &mut Self {
+    /// Encode [`Instruction::TableCopy`].
+    pub fn table_copy(&mut self, src_table: u32, dst_table: u32) -> &mut Self {
         self.sink.push(0xfc);
-        self.sink.push(0x11);
-        table.encode(self.sink);
+        self.sink.push(0x0e);
+        dst_table.encode(self.sink);
+        src_table.encode(self.sink);
         self
     }
 
@@ -1790,11 +1801,107 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
+    /// Encode [`Instruction::V128Load32Zero`].
+    pub fn v128_load32_zero(&mut self, memarg: MemArg) -> &mut Self {
+        self.sink.push(0xFD);
+        0x5Cu32.encode(self.sink);
+        memarg.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::V128Load64Zero`].
+    pub fn v128_load64_zero(&mut self, memarg: MemArg) -> &mut Self {
+        self.sink.push(0xFD);
+        0x5Du32.encode(self.sink);
+        memarg.encode(self.sink);
+        self
+    }
+
     /// Encode [`Instruction::V128Store`].
     pub fn v128_store(&mut self, memarg: MemArg) -> &mut Self {
         self.sink.push(0xFD);
         0x0Bu32.encode(self.sink);
         memarg.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::V128Load8Lane`].
+    pub fn v128_load8_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x54u32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 16);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::V128Load16Lane`].
+    pub fn v128_load16_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x55u32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 8);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::V128Load32Lane`].
+    pub fn v128_load32_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x56u32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 4);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::V128Load64Lane`].
+    pub fn v128_load64_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x57u32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 2);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::V128Store8Lane`].
+    pub fn v128_store8_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x58u32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 16);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::V128Store16Lane`].
+    pub fn v128_store16_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x59u32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 8);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::V128Store32Lane`].
+    pub fn v128_store32_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x5Au32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 4);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::V128Store64Lane`].
+    pub fn v128_store64_lane(&mut self, memarg: MemArg, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x5Bu32.encode(self.sink);
+        memarg.encode(self.sink);
+        assert!(lane < 2);
+        self.sink.push(lane);
         self
     }
 
@@ -1807,11 +1914,137 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::I8x16Shuffle`].
-    pub fn i8x16_shuffle(&mut self, lanes: [u8; 16]) -> &mut Self {
+    pub fn i8x16_shuffle(&mut self, lanes: [Lane; 16]) -> &mut Self {
         self.sink.push(0xFD);
         0x0Du32.encode(self.sink);
         assert!(lanes.iter().all(|l: &u8| *l < 32));
         self.sink.extend(lanes.iter().copied());
+        self
+    }
+
+    /// Encode [`Instruction::I8x16ExtractLaneS`].
+    pub fn i8x16_extract_lane_s(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x15u32.encode(self.sink);
+        assert!(lane < 16);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I8x16ExtractLaneU`].
+    pub fn i8x16_extract_lane_u(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x16u32.encode(self.sink);
+        assert!(lane < 16);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I8x16ReplaceLane`].
+    pub fn i8x16_replace_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x17u32.encode(self.sink);
+        assert!(lane < 16);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I16x8ExtractLaneS`].
+    pub fn i16x8_extract_lane_s(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x18u32.encode(self.sink);
+        assert!(lane < 8);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I16x8ExtractLaneU`].
+    pub fn i16x8_extract_lane_u(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x19u32.encode(self.sink);
+        assert!(lane < 8);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I16x8ReplaceLane`].
+    pub fn i16x8_replace_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x1Au32.encode(self.sink);
+        assert!(lane < 8);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I32x4ExtractLane`].
+    pub fn i32x4_extract_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x1Bu32.encode(self.sink);
+        assert!(lane < 4);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I32x4ReplaceLane`].
+    pub fn i32x4_replace_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x1Cu32.encode(self.sink);
+        assert!(lane < 4);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2ExtractLane`].
+    pub fn i64x2_extract_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x1Du32.encode(self.sink);
+        assert!(lane < 2);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2ReplaceLane`].
+    pub fn i64x2_replace_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x1Eu32.encode(self.sink);
+        assert!(lane < 2);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::F32x4ExtractLane`].
+    pub fn f32x4_extract_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x1Fu32.encode(self.sink);
+        assert!(lane < 4);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::F32x4ReplaceLane`].
+    pub fn f32x4_replace_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x20u32.encode(self.sink);
+        assert!(lane < 4);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::F64x2ExtractLane`].
+    pub fn f64x2_extract_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x21u32.encode(self.sink);
+        assert!(lane < 2);
+        self.sink.push(lane);
+        self
+    }
+
+    /// Encode [`Instruction::F64x2ReplaceLane`].
+    pub fn f64x2_replace_lane(&mut self, lane: Lane) -> &mut Self {
+        self.sink.push(0xFD);
+        0x22u32.encode(self.sink);
+        assert!(lane < 2);
+        self.sink.push(lane);
         self
     }
 
@@ -1863,133 +2096,6 @@ impl<'a> InstructionSink<'a> {
         0x14u32.encode(self.sink);
         self
     }
-
-    /// Encode [`Instruction::I8x16ExtractLaneS`].
-    pub fn i8x16_extract_lane_s(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x15u32.encode(self.sink);
-        assert!(lane < 16);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I8x16ExtractLaneU`].
-    pub fn i8x16_extract_lane_u(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x16u32.encode(self.sink);
-        assert!(lane < 16);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I8x16ReplaceLane`].
-    pub fn i8x16_replace_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x17u32.encode(self.sink);
-        assert!(lane < 16);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I16x8ExtractLaneS`].
-    pub fn i16x8_extract_lane_s(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x18u32.encode(self.sink);
-        assert!(lane < 8);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I16x8ExtractLaneU`].
-    pub fn i16x8_extract_lane_u(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x19u32.encode(self.sink);
-        assert!(lane < 8);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I16x8ReplaceLane`].
-    pub fn i16x8_replace_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x1Au32.encode(self.sink);
-        assert!(lane < 8);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I32x4ExtractLane`].
-    pub fn i32x4_extract_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x1Bu32.encode(self.sink);
-        assert!(lane < 4);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I32x4ReplaceLane`].
-    pub fn i32x4_replace_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x1Cu32.encode(self.sink);
-        assert!(lane < 4);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2ExtractLane`].
-    pub fn i64x2_extract_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x1Du32.encode(self.sink);
-        assert!(lane < 2);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2ReplaceLane`].
-    pub fn i64x2_replace_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x1Eu32.encode(self.sink);
-        assert!(lane < 2);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::F32x4ExtractLane`].
-    pub fn f32x4_extract_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x1Fu32.encode(self.sink);
-        assert!(lane < 4);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::F32x4ReplaceLane`].
-    pub fn f32x4_replace_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x20u32.encode(self.sink);
-        assert!(lane < 4);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::F64x2ExtractLane`].
-    pub fn f64x2_extract_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x21u32.encode(self.sink);
-        assert!(lane < 2);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::F64x2ReplaceLane`].
-    pub fn f64x2_replace_lane(&mut self, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x22u32.encode(self.sink);
-        assert!(lane < 2);
-        self.sink.push(lane);
-        self
-    }
-
 
     /// Encode [`Instruction::I8x16Eq`].
     pub fn i8x16_eq(&mut self) -> &mut Self {
@@ -2198,6 +2304,48 @@ impl<'a> InstructionSink<'a> {
     pub fn i32x4_ge_u(&mut self) -> &mut Self {
         self.sink.push(0xFD);
         0x40u32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2Eq`].
+    pub fn i64x2_eq(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0xD6u32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2Ne`].
+    pub fn i64x2_ne(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0xD7u32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2LtS`].
+    pub fn i64x2_lt_s(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0xD8u32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2GtS`].
+    pub fn i64x2_gt_s(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0xD9u32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2LeS`].
+    pub fn i64x2_le_s(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0xDAu32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I64x2GeS`].
+    pub fn i64x2_ge_s(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0xDBu32.encode(self.sink);
         self
     }
 
@@ -2495,20 +2643,6 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-    /// Encode [`Instruction::I32x4ExtAddPairwiseI16x8S`].
-    pub fn i32x4_extadd_pairwise_i16x8_s(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0x7Eu32.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::I32x4ExtAddPairwiseI16x8U`].
-    pub fn i32x4_extadd_pairwise_i16x8_u(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0x7Fu32.encode(self.sink);
-        self
-    }
-
     /// Encode [`Instruction::I16x8Abs`].
     pub fn i16x8_abs(&mut self) -> &mut Self {
         self.sink.push(0xFD);
@@ -2716,6 +2850,20 @@ impl<'a> InstructionSink<'a> {
     pub fn i16x8_extmul_high_i8x16_u(&mut self) -> &mut Self {
         self.sink.push(0xFD);
         0x9Fu32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I32x4ExtAddPairwiseI16x8S`].
+    pub fn i32x4_extadd_pairwise_i16x8_s(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0x7Eu32.encode(self.sink);
+        self
+    }
+
+    /// Encode [`Instruction::I32x4ExtAddPairwiseI16x8U`].
+    pub fn i32x4_extadd_pairwise_i16x8_u(&mut self) -> &mut Self {
+        self.sink.push(0xFD);
+        0x7Fu32.encode(self.sink);
         self
     }
 
@@ -3286,143 +3434,7 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-    /// Encode [`Instruction::V128Load32Zero`].
-    pub fn v128_load32_zero(&mut self, memarg: MemArg) -> &mut Self {
-        self.sink.push(0xFD);
-        0x5Cu32.encode(self.sink);
-        memarg.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::V128Load64Zero`].
-    pub fn v128_load64_zero(&mut self, memarg: MemArg) -> &mut Self {
-        self.sink.push(0xFD);
-        0x5Du32.encode(self.sink);
-        memarg.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::V128Load8Lane`].
-    pub fn v128_load8_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x54u32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 16);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::V128Load16Lane`].
-    pub fn v128_load16_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x55u32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 8);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::V128Load32Lane`].
-    pub fn v128_load32_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x56u32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 4);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::V128Load64Lane`].
-    pub fn v128_load64_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x57u32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 2);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::V128Store8Lane`].
-    pub fn v128_store8_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x58u32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 16);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::V128Store16Lane`].
-    pub fn v128_store16_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x59u32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 8);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::V128Store32Lane`].
-    pub fn v128_store32_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x5Au32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 4);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::V128Store64Lane`].
-    pub fn v128_store64_lane(&mut self, memarg: MemArg, lane: u8) -> &mut Self {
-        self.sink.push(0xFD);
-        0x5Bu32.encode(self.sink);
-        memarg.encode(self.sink);
-        assert!(lane < 2);
-        self.sink.push(lane);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2Eq`].
-    pub fn i64x2_eq(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0xD6u32.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2Ne`].
-    pub fn i64x2_ne(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0xD7u32.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2LtS`].
-    pub fn i64x2_lt_s(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0xD8u32.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2GtS`].
-    pub fn i64x2_gt_s(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0xD9u32.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2LeS`].
-    pub fn i64x2_le_s(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0xDAu32.encode(self.sink);
-        self
-    }
-
-    /// Encode [`Instruction::I64x2GeS`].
-    pub fn i64x2_ge_s(&mut self) -> &mut Self {
-        self.sink.push(0xFD);
-        0xDBu32.encode(self.sink);
-        self
-    }
+    // Relaxed simd proposal
 
     /// Encode [`Instruction::I8x16RelaxedSwizzle`].
     pub fn i8x16_relaxed_swizzle(&mut self) -> &mut Self {
@@ -3564,7 +3576,7 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-    // Atomic instructions from the thread proposal
+    // Atomic instructions (the threads proposal)
 
     /// Encode [`Instruction::MemoryAtomicNotify`].
     pub fn memory_atomic_notify(&mut self, memarg: MemArg) -> &mut Self {
@@ -4102,7 +4114,7 @@ impl<'a> InstructionSink<'a> {
         self
     }
 
-    // Atomic instructions from the shared-everything-threads proposal
+    // More atomic instructions (the shared-everything-threads proposal)
 
     /// Encode [`Instruction::GlobalAtomicGet`].
     pub fn global_atomic_get(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
@@ -4177,7 +4189,11 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicRmwCmpxchg`].
-    pub fn global_atomic_rmw_cmpxchg(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
+    pub fn global_atomic_rmw_cmpxchg(
+        &mut self,
+        ordering: Ordering,
+        global_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x57);
         ordering.encode(self.sink);
@@ -4222,7 +4238,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicGet`].
-    pub fn struct_atomic_get(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_get(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5C);
         ordering.encode(self.sink);
@@ -4232,7 +4253,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicGetS`].
-    pub fn struct_atomic_get_s(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_get_s(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5D);
         ordering.encode(self.sink);
@@ -4242,7 +4268,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicGetU`].
-    pub fn struct_atomic_get_u(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_get_u(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5E);
         ordering.encode(self.sink);
@@ -4252,7 +4283,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicSet`].
-    pub fn struct_atomic_set(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_set(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5F);
         ordering.encode(self.sink);
@@ -4262,7 +4298,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicRmwAdd`].
-    pub fn struct_atomic_rmw_add(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_rmw_add(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x60);
         ordering.encode(self.sink);
@@ -4272,7 +4313,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicRmwSub`].
-    pub fn struct_atomic_rmw_sub(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_rmw_sub(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x61);
         ordering.encode(self.sink);
@@ -4282,7 +4328,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicRmwAnd`].
-    pub fn struct_atomic_rmw_and(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_rmw_and(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x62);
         ordering.encode(self.sink);
@@ -4292,7 +4343,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicRmwOr`].
-    pub fn struct_atomic_rmw_or(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_rmw_or(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x63);
         ordering.encode(self.sink);
@@ -4302,7 +4358,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicRmwXor`].
-    pub fn struct_atomic_rmw_xor(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_rmw_xor(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x64);
         ordering.encode(self.sink);
@@ -4312,7 +4373,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicRmwXchg`].
-    pub fn struct_atomic_rmw_xchg(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_rmw_xchg(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x65);
         ordering.encode(self.sink);
@@ -4322,7 +4388,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructAtomicRmwCmpxchg`].
-    pub fn struct_atomic_rmw_cmpxchg(&mut self, ordering: Ordering, struct_type_index: u32, field_index: u32) -> &mut Self {
+    pub fn struct_atomic_rmw_cmpxchg(
+        &mut self,
+        ordering: Ordering,
+        struct_type_index: u32,
+        field_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x66);
         ordering.encode(self.sink);
@@ -4413,7 +4484,11 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicRmwXchg`].
-    pub fn array_atomic_rmw_xchg(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
+    pub fn array_atomic_rmw_xchg(
+        &mut self,
+        ordering: Ordering,
+        array_type_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x70);
         ordering.encode(self.sink);
@@ -4422,7 +4497,11 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicRmwCmpxchg`].
-    pub fn array_atomic_rmw_cmpxchg(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
+    pub fn array_atomic_rmw_cmpxchg(
+        &mut self,
+        ordering: Ordering,
+        array_type_index: u32,
+    ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x71);
         ordering.encode(self.sink);
@@ -4436,6 +4515,8 @@ impl<'a> InstructionSink<'a> {
         self.sink.push(0x72);
         self
     }
+
+    // Stack switching
 
     /// Encode [`Instruction::ContNew`].
     pub fn cont_new(&mut self, type_index: u32) -> &mut Self {
@@ -4468,7 +4549,12 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ResumeThrow`].
-    pub fn resume_throw(&mut self, cont_type_index: u32, tag_index: u32, resume_table: &[Handle]) -> &mut Self {
+    pub fn resume_throw(
+        &mut self,
+        cont_type_index: u32,
+        tag_index: u32,
+        resume_table: &[Handle],
+    ) -> &mut Self {
         self.sink.push(0xE4);
         cont_type_index.encode(self.sink);
         tag_index.encode(self.sink);
@@ -4483,6 +4569,8 @@ impl<'a> InstructionSink<'a> {
         tag_index.encode(self.sink);
         self
     }
+
+    // Wide Arithmetic
 
     /// Encode [`Instruction::I64Add128`].
     pub fn i64_add128(&mut self) -> &mut Self {
