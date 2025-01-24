@@ -2,6 +2,8 @@ use wasm_encoder::{
     BlockType, Catch, Encode, Handle, HeapType, Lane, MemArg, Ordering, RefType, ValType,
 };
 
+pub use wasm_encoder::Instruction;
+
 fn encode_vec<T, V>(elements: V, sink: &mut Vec<u8>)
 where
     T: Encode,
