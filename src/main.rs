@@ -7,30 +7,85 @@ fn main() -> anyhow::Result<()> {
     let encodings = include_str!("encodings.txt");
     let mut encoding_params = HashMap::<&str, Vec<&str>>::new();
     let mut encoding_bodies = HashMap::<&str, Vec<&str>>::new();
+    let mut out = File::create("generated.rs")?;
     let mut name = None::<&str>;
     let mut params = None::<Vec<&str>>;
     let mut encoding = Vec::<&str>::new();
-    let re_pattern = Regex::new(r"^(\w+)(.*) => \{$")?;
-    let re_params = Regex::new(r"^\((.*)\)$")?;
+    let re_pattern = Regex::new(r"^((\w+)(.*)) => \{$")?;
+    let re_tuple = Regex::new(r"^\((.*)\)$")?;
+    let re_struct = Regex::new(r"^ \{ (.*) \}$")?;
+    writeln!(
+        out,
+        "fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {{"
+    )?;
+    writeln!(out, "    let mut sink = InstructionSink::new(bytes);")?;
+    writeln!(out, "    match *instruction {{")?;
     for line in encodings.lines() {
-        if let Some(caps) = re_pattern.captures(line) {
-            name = Some(caps.get(1).unwrap().as_str());
-            if let Some(caps) = re_params.captures(caps.get(2).unwrap().as_str()) {
-                params = Some(caps.get(1).unwrap().as_str().split(", ").collect());
+        if line.is_empty() {
+            writeln!(out)?;
+        } else if line.starts_with("//") {
+            writeln!(out, "        {line}")?;
+        } else if let Some(caps) = re_pattern.captures(line) {
+            let pattern = caps.get(1).unwrap().as_str();
+            name = Some(caps.get(2).unwrap().as_str());
+            let snake = snakify(name.unwrap());
+            let pat_args = caps.get(3).unwrap().as_str();
+            if let Some(caps) = re_tuple.captures(pat_args) {
+                params = Some(split(caps.get(1).unwrap().as_str()));
+            } else if let Some(caps) = re_struct.captures(pat_args) {
+                params = Some(split(caps.get(1).unwrap().as_str()));
+            } else {
+                assert!(pat_args.is_empty());
+                params = Some(Vec::new());
             }
+            write!(out, "        Instruction::{pattern} => sink.{snake}(")?;
+            let args = params.as_ref().unwrap();
+            if !args.is_empty() {
+                let ordered = if args.len() == 1 {
+                    args.to_vec()
+                } else {
+                    reorder(name.unwrap())
+                };
+                assert_eq!(sorted(args), sorted(&ordered));
+                let mut first = true;
+                for arg in ordered {
+                    if !first {
+                        write!(out, ", ")?;
+                    }
+                    first = false;
+                    if let Some(ty) = retype(name.unwrap(), arg) {
+                        if ty.starts_with("impl ") {
+                            match name.unwrap() {
+                                "BrTable" => write!(out, "ls.iter().copied().map(LabelIdx)")?,
+                                "Resume" | "ResumeThrow" => {
+                                    write!(out, "resume_table.iter().cloned()")?
+                                }
+                                "TryTable" => write!(out, "catches.iter().cloned()")?,
+                                instruction => panic!("{instruction}"),
+                            }
+                        } else {
+                            write!(out, "{ty}({arg})")?;
+                        }
+                    } else {
+                        write!(out, "{arg}")?;
+                    }
+                }
+            }
+            writeln!(out, "),")?;
         } else if line.starts_with("    ") {
             encoding.push(line);
         } else if line == "}" {
             let name = name.take().unwrap();
-            if let Some(names) = params.take() {
-                encoding_params.insert(name, names);
-            }
+            encoding_params.insert(name, params.take().unwrap());
             encoding_bodies.insert(name, take(&mut encoding));
         } else {
-            assert!(line.is_empty() || line.starts_with("//"));
+            panic!("{line}");
         }
     }
-    let mut out = File::create("generated.rs")?;
+    writeln!(out, "        _ => unimplemented!(),")?;
+    writeln!(out, "    }};")?;
+    writeln!(out, "}}")?;
+    writeln!(out)?;
     writeln!(out, "impl<'a> InstructionSink<'a> {{")?;
     let re_unit = Regex::new(r"^(\w+)$")?;
     let re_tuple = Regex::new(r"^(\w+)\((.*)\)$")?;
@@ -56,7 +111,11 @@ fn main() -> anyhow::Result<()> {
                 let types = caps.get(2).unwrap().as_str().split(", ");
                 for (param, ty) in encoding_params.get(name).unwrap().iter().zip(types) {
                     let param_name = param.strip_prefix("ref ").unwrap_or(param);
-                    write!(out, ", {param_name}: {}", retype(name, param_name, ty))?;
+                    write!(
+                        out,
+                        ", {param_name}: {}",
+                        retype(name, param_name).unwrap_or(ty)
+                    )?;
                 }
                 writeln!(out, ") -> &mut Self {{")?;
                 name
@@ -65,10 +124,19 @@ fn main() -> anyhow::Result<()> {
                 let snake = snakify(name);
                 writeln!(out, "    /// Encode [`Instruction::{name}`].")?;
                 write!(out, "    pub fn {snake}(&mut self")?;
-                for field in caps.get(2).unwrap().as_str().split(", ") {
-                    let (param, ty) = field.split_once(": ").unwrap();
-                    let param_name = param.strip_prefix("ref ").unwrap_or(param);
-                    write!(out, ", {param_name}: {}", retype(name, param_name, ty))?;
+                let field_types: HashMap<&str, &str> = caps
+                    .get(2)
+                    .unwrap()
+                    .as_str()
+                    .split(", ")
+                    .map(|field| {
+                        let (param, ty) = field.split_once(": ").unwrap();
+                        (param.strip_prefix("ref ").unwrap_or(param), ty)
+                    })
+                    .collect();
+                for param in reorder(name) {
+                    let ty = field_types.get(param).unwrap();
+                    write!(out, ", {param}: {}", retype(name, param).unwrap_or(ty))?;
                 }
                 writeln!(out, ") -> &mut Self {{")?;
                 name
@@ -94,6 +162,12 @@ fn main() -> anyhow::Result<()> {
     }
     writeln!(out, "}}")?;
     Ok(())
+}
+
+fn sorted<T: Clone + Ord>(xs: &[T]) -> Vec<T> {
+    let mut ys = xs.to_vec();
+    ys.sort();
+    ys
 }
 
 fn snakify(name: &str) -> String {
@@ -123,8 +197,14 @@ fn snakify(name: &str) -> String {
     }
 }
 
-fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
-    match instruction {
+fn split(s: &str) -> Vec<&str> {
+    s.split(", ")
+        .map(|x| x.strip_prefix("ref ").unwrap_or(x))
+        .collect()
+}
+
+fn retype(instruction: &str, param: &str) -> Option<&'static str> {
+    let ty = match instruction {
         "DataDrop" => "DataIdx",
         "ElemDrop" => "ElemIdx",
         "Call" | "RefFunc" | "ReturnCall" => "FuncIdx",
@@ -151,22 +231,21 @@ fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
         | "ArrayAtomicRmwXchg"
         | "ArrayAtomicRmwCmpxchg" => match param {
             "array_type_index" => "TypeIdx",
-            "ordering" => "Ordering",
+            "ordering" => return None,
             _ => panic!("{param}"),
         },
         "ArrayInitData" | "ArrayInitElem" | "ArrayNewFixed" | "ArrayNewData" | "ArrayNewElem" => {
             match param {
                 "array_data_index" => "DataIdx",
                 "array_elem_index" => "ElemIdx",
-                "array_size" => "u32",
+                "array_size" => return None,
                 "array_type_index" => "TypeIdx",
                 _ => panic!("{param}"),
             }
         }
         "BrOnCast" | "BrOnCastFail" => match param {
-            "from_ref_type" => "RefType",
+            "from_ref_type" | "to_ref_type" => return None,
             "relative_depth" => "LabelIdx",
-            "to_ref_type" => "RefType",
             _ => panic!("{param}"),
         },
         "BrTable" => match param {
@@ -189,7 +268,7 @@ fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
         | "GlobalAtomicRmwXchg"
         | "GlobalAtomicRmwCmpxchg" => match param {
             "global_index" => "GlobalIdx",
-            "ordering" => "Ordering",
+            "ordering" => return None,
             _ => panic!("{param}"),
         },
         "MemoryInit" => match param {
@@ -215,7 +294,7 @@ fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
         | "StructAtomicRmwXchg"
         | "StructAtomicRmwCmpxchg" => match param {
             "field_index" => "FieldIdx",
-            "ordering" => "Ordering",
+            "ordering" => return None,
             "struct_type_index" => "TypeIdx",
             _ => panic!("{param}"),
         },
@@ -226,7 +305,7 @@ fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
         },
         "TableAtomicGet" | "TableAtomicSet" | "TableAtomicRmwXchg" | "TableAtomicRmwCmpxchg" => {
             match param {
-                "ordering" => "Ordering",
+                "ordering" => return None,
                 "table_index" => "TableIdx",
                 _ => panic!("{param}"),
             }
@@ -238,9 +317,75 @@ fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
         },
         "TryTable" => match param {
             "catches" => "impl IntoIterator<Item = Catch, IntoIter: ExactSizeIterator>",
-            "ty" => "BlockType",
+            "ty" => return None,
             _ => panic!("{param}"),
         },
-        _ => ty,
+        _ => return None,
+    };
+    Some(ty)
+}
+
+fn reorder(instruction: &str) -> Vec<&str> {
+    match instruction {
+        "ArrayAtomicGet"
+        | "ArrayAtomicGetS"
+        | "ArrayAtomicGetU"
+        | "ArrayAtomicSet"
+        | "ArrayAtomicRmwAdd"
+        | "ArrayAtomicRmwSub"
+        | "ArrayAtomicRmwAnd"
+        | "ArrayAtomicRmwOr"
+        | "ArrayAtomicRmwXor"
+        | "ArrayAtomicRmwXchg"
+        | "ArrayAtomicRmwCmpxchg" => vec!["ordering", "array_type_index"],
+        "ArrayCopy" => vec!["array_type_index_dst", "array_type_index_src"],
+        "ArrayInitData" => vec!["array_type_index", "array_data_index"],
+        "ArrayInitElem" => vec!["array_type_index", "array_elem_index"],
+        "ArrayNewData" => vec!["array_type_index", "array_data_index"],
+        "ArrayNewElem" => vec!["array_type_index", "array_elem_index"],
+        "ArrayNewFixed" => vec!["array_type_index", "array_size"],
+        "BrOnCast" | "BrOnCastFail" => vec!["relative_depth", "from_ref_type", "to_ref_type"],
+        "BrTable" => vec!["ls", "l"],
+        "CallIndirect" | "ReturnCallIndirect" => vec!["table_index", "type_index"],
+        "ContBind" => vec!["argument_index", "result_index"],
+        "GlobalAtomicGet"
+        | "GlobalAtomicSet"
+        | "GlobalAtomicRmwAdd"
+        | "GlobalAtomicRmwSub"
+        | "GlobalAtomicRmwAnd"
+        | "GlobalAtomicRmwOr"
+        | "GlobalAtomicRmwXor"
+        | "GlobalAtomicRmwXchg"
+        | "GlobalAtomicRmwCmpxchg" => vec!["ordering", "global_index"],
+        "MemoryCopy" => vec!["dst_mem", "src_mem"],
+        "MemoryInit" => vec!["mem", "data_index"],
+        "Resume" => vec!["cont_type_index", "resume_table"],
+        "ResumeThrow" => vec!["cont_type_index", "tag_index", "resume_table"],
+        "StructAtomicGet"
+        | "StructAtomicGetS"
+        | "StructAtomicGetU"
+        | "StructAtomicSet"
+        | "StructAtomicRmwAdd"
+        | "StructAtomicRmwSub"
+        | "StructAtomicRmwAnd"
+        | "StructAtomicRmwOr"
+        | "StructAtomicRmwXor"
+        | "StructAtomicRmwXchg"
+        | "StructAtomicRmwCmpxchg" => vec!["ordering", "struct_type_index", "field_index"],
+        "StructGet" | "StructGetS" | "StructGetU" | "StructSet" => {
+            vec!["struct_type_index", "field_index"]
+        }
+        "Switch" => vec!["cont_type_index", "tag_index"],
+        "TableAtomicGet" | "TableAtomicSet" | "TableAtomicRmwXchg" | "TableAtomicRmwCmpxchg" => {
+            vec!["ordering", "table_index"]
+        }
+        "TableCopy" => vec!["dst_table", "src_table"],
+        "TableInit" => vec!["table", "elem_index"],
+        "TryTable" => vec!["ty", "catches"],
+        "V128Load8Lane" | "V128Load16Lane" | "V128Load32Lane" | "V128Load64Lane"
+        | "V128Store8Lane" | "V128Store16Lane" | "V128Store32Lane" | "V128Store64Lane" => {
+            vec!["memarg", "lane"]
+        }
+        _ => panic!("{instruction}"),
     }
 }
