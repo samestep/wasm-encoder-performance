@@ -4,6 +4,7 @@ publish = false
 edition = "2021"
 
 [dependencies]
+anyhow = "1"
 regex = "1"
 wasm-encoder = "0.223"
 

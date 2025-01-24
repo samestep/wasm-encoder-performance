@@ -123,18 +123,19 @@ f.sink()
 
 As an aside, this also happens to result in more concise code.
 
-The contents of `src/sink.rs` are generated using a [script](src/main.rs) that parses [`src/code.rs`](src/code.rs), which itself is copied from [`src/core/code.rs` in the wasm-tools repo](https://github.com/bytecodealliance/wasm-tools/blob/6e9164c5db03892c9dc603ba1f783e84d0eacdd7/crates/wasm-encoder/src/core/code.rs#L1239-L3783). You can run it like this:
+The contents of `src/sink.rs` were generated via [a script on commit `f6d6792`](https://github.com/samestep/wasm-encoder-performance/blob/f6d679295e138187b902d70d8b50ed84673ae94c/src/main.rs). Currently the script emits `generated.rs` which uses yet another strategy; you can run the generator like this:
 
 ```sh
-brew install sponge
-cargo run | sponge src/sink.rs
+cargo run
 ```
+
+The input files `src/variants.txt` and `src/encodings.txt` were manually adapted from [`crates/wasm-encoder/src/core/code.rs` in the wasm-tools repo](https://github.com/bytecodealliance/wasm-tools/blob/7530629a3a127a1429b4837a1b1632f11d3dfeea/crates/wasm-encoder/src/core/code.rs).
 
 ## Usage
 
 To reproduce, assuming you have [Rust](https://www.rust-lang.org/tools/install) and are using [Homebrew](https://brew.sh/):
 
-```
+```sh
 brew install gnuplot
 cargo bench
 cargo install --locked resvg
