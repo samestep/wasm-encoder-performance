@@ -4,19 +4,23 @@ Benchmarking [wasm-encoder](https://crates.io/crates/wasm-encoder) against an al
 
 ## Results
 
-On my 2020 M1 MacBook Pro, I see a 28% difference in performance:
+On my 2020 M1 MacBook Pro, I see a 30% difference in performance:
 
 ```
 Encoding/Current/helpers
-                        time:   [2.9529 µs 3.0171 µs 3.1023 µs]
-                        change: [-1.9347% -0.7749% +0.6104%] (p = 0.27 > 0.05)
+                        time:   [3.0190 µs 3.1112 µs 3.2379 µs]
+                        change: [-1.4748% +2.2338% +6.4657%] (p = 0.32 > 0.05)
                         No change in performance detected.
-Found 2 outliers among 100 measurements (2.00%)
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) high mild
   2 (2.00%) high severe
 Encoding/Alternative/helpers
-                        time:   [2.3315 µs 2.3560 µs 2.3809 µs]
-                        change: [-0.5493% +0.4016% +1.2946%] (p = 0.40 > 0.05)
+                        time:   [2.3315 µs 2.3836 µs 2.4785 µs]
+                        change: [-3.8040% +0.4363% +3.8609%] (p = 0.84 > 0.05)
                         No change in performance detected.
+Found 11 outliers among 100 measurements (11.00%)
+  6 (6.00%) high mild
+  5 (5.00%) high severe
 ```
 
 ![violin plot](violin.png)

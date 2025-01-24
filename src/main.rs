@@ -53,10 +53,10 @@ fn main() -> anyhow::Result<()> {
                 let snake = snakify(name);
                 writeln!(out, "    /// Encode [`Instruction::{name}`].")?;
                 write!(out, "    pub fn {snake}(&mut self")?;
-                let types = caps[2].split(", ");
+                let types = caps.get(2).unwrap().as_str().split(", ");
                 for (param, ty) in encoding_params.get(name).unwrap().iter().zip(types) {
                     let param_name = param.strip_prefix("ref ").unwrap_or(param);
-                    write!(out, ", {param_name}: {ty}")?;
+                    write!(out, ", {param_name}: {}", retype(name, param_name, ty))?;
                 }
                 writeln!(out, ") -> &mut Self {{")?;
                 name
@@ -64,17 +64,28 @@ fn main() -> anyhow::Result<()> {
                 let name = caps.get(1).unwrap().as_str();
                 let snake = snakify(name);
                 writeln!(out, "    /// Encode [`Instruction::{name}`].")?;
-                writeln!(
-                    out,
-                    "    pub fn {snake}(&mut self, {}) -> &mut Self {{",
-                    &caps[2]
-                )?;
+                write!(out, "    pub fn {snake}(&mut self")?;
+                for field in caps.get(2).unwrap().as_str().split(", ") {
+                    let (param, ty) = field.split_once(": ").unwrap();
+                    let param_name = param.strip_prefix("ref ").unwrap_or(param);
+                    write!(out, ", {param_name}: {}", retype(name, param_name, ty))?;
+                }
+                writeln!(out, ") -> &mut Self {{")?;
                 name
             } else {
                 panic!("{line}");
             };
-            for stmt in encoding_bodies.get(name).unwrap() {
-                writeln!(out, "    {}", stmt.replace("sink", "self.sink"))?;
+            for &stmt in encoding_bodies.get(name).unwrap() {
+                match stmt {
+                    "    catches.encode(sink);" => {
+                        writeln!(out, "        encode_vec(catches, self.sink);")?
+                    }
+                    "    ls.encode(sink);" => writeln!(out, "        encode_vec(ls, self.sink);")?,
+                    "    resume_table.encode(sink);" => {
+                        writeln!(out, "        encode_vec(resume_table, self.sink);")?
+                    }
+                    _ => writeln!(out, "    {}", stmt.replace("sink", "self.sink"))?,
+                }
             }
             writeln!(out, "        self")?;
             writeln!(out, "    }}")?;
@@ -109,5 +120,127 @@ fn snakify(name: &str) -> String {
                 .replace("p_min", "pmin")
                 .replace("q15_mulr", "q15mulr")
         }
+    }
+}
+
+fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
+    match instruction {
+        "DataDrop" => "DataIdx",
+        "ElemDrop" => "ElemIdx",
+        "Call" | "RefFunc" | "ReturnCall" => "FuncIdx",
+        "GlobalGet" | "GlobalSet" => "GlobalIdx",
+        "Br" | "BrIf" | "BrOnNull" | "BrOnNonNull" => "LabelIdx",
+        "LocalGet" | "LocalSet" | "LocalTee" => "LocalIdx",
+        "TableFill" | "TableSet" | "TableGet" | "TableGrow" | "TableSize" | "TableCopy" => {
+            "TableIdx"
+        }
+        "MemoryCopy" | "MemoryDiscard" | "MemoryFill" | "MemoryGrow" | "MemorySize" => "MemIdx",
+        "Throw" => "TagIdx",
+        "ArrayCopy" | "ArrayFill" | "ArrayGet" | "ArrayGetS" | "ArrayGetU" | "ArrayNew"
+        | "ArrayNewDefault" | "ArraySet" | "CallRef" | "ReturnCallRef" | "StructNew"
+        | "StructNewDefault" => "TypeIdx",
+        "ArrayAtomicGet"
+        | "ArrayAtomicGetS"
+        | "ArrayAtomicGetU"
+        | "ArrayAtomicSet"
+        | "ArrayAtomicRmwAdd"
+        | "ArrayAtomicRmwSub"
+        | "ArrayAtomicRmwAnd"
+        | "ArrayAtomicRmwOr"
+        | "ArrayAtomicRmwXor"
+        | "ArrayAtomicRmwXchg"
+        | "ArrayAtomicRmwCmpxchg" => match param {
+            "array_type_index" => "TypeIdx",
+            "ordering" => "Ordering",
+            _ => panic!("{param}"),
+        },
+        "ArrayInitData" | "ArrayInitElem" | "ArrayNewFixed" | "ArrayNewData" | "ArrayNewElem" => {
+            match param {
+                "array_data_index" => "DataIdx",
+                "array_elem_index" => "ElemIdx",
+                "array_size" => "u32",
+                "array_type_index" => "TypeIdx",
+                _ => panic!("{param}"),
+            }
+        }
+        "BrOnCast" | "BrOnCastFail" => match param {
+            "from_ref_type" => "RefType",
+            "relative_depth" => "LabelIdx",
+            "to_ref_type" => "RefType",
+            _ => panic!("{param}"),
+        },
+        "BrTable" => match param {
+            "l" => "LabelIdx",
+            "ls" => "impl IntoIterator<Item = LabelIdx, IntoIter: ExactSizeIterator>",
+            _ => panic!("{param}"),
+        },
+        "CallIndirect" | "ReturnCallIndirect" => match param {
+            "table_index" => "TableIdx",
+            "type_index" => "TypeIdx",
+            _ => panic!("{param}"),
+        },
+        "GlobalAtomicGet"
+        | "GlobalAtomicSet"
+        | "GlobalAtomicRmwAdd"
+        | "GlobalAtomicRmwSub"
+        | "GlobalAtomicRmwAnd"
+        | "GlobalAtomicRmwOr"
+        | "GlobalAtomicRmwXor"
+        | "GlobalAtomicRmwXchg"
+        | "GlobalAtomicRmwCmpxchg" => match param {
+            "global_index" => "GlobalIdx",
+            "ordering" => "Ordering",
+            _ => panic!("{param}"),
+        },
+        "MemoryInit" => match param {
+            "data_index" => "DataIdx",
+            "mem" => "MemIdx",
+            _ => panic!("{param}"),
+        },
+        "Resume" | "ResumeThrow" => match param {
+            "cont_type_index" => "u32",
+            "resume_table" => "impl IntoIterator<Item = Handle, IntoIter: ExactSizeIterator>",
+            "tag_index" => "u32",
+            _ => panic!("{param}"),
+        },
+        "StructAtomicGet"
+        | "StructAtomicGetS"
+        | "StructAtomicGetU"
+        | "StructAtomicSet"
+        | "StructAtomicRmwAdd"
+        | "StructAtomicRmwSub"
+        | "StructAtomicRmwAnd"
+        | "StructAtomicRmwOr"
+        | "StructAtomicRmwXor"
+        | "StructAtomicRmwXchg"
+        | "StructAtomicRmwCmpxchg" => match param {
+            "field_index" => "FieldIdx",
+            "ordering" => "Ordering",
+            "struct_type_index" => "TypeIdx",
+            _ => panic!("{param}"),
+        },
+        "StructGet" | "StructGetS" | "StructGetU" | "StructSet" => match param {
+            "field_index" => "FieldIdx",
+            "struct_type_index" => "TypeIdx",
+            _ => panic!("{param}"),
+        },
+        "TableAtomicGet" | "TableAtomicSet" | "TableAtomicRmwXchg" | "TableAtomicRmwCmpxchg" => {
+            match param {
+                "ordering" => "Ordering",
+                "table_index" => "TableIdx",
+                _ => panic!("{param}"),
+            }
+        }
+        "TableInit" => match param {
+            "elem_index" => "ElemIdx",
+            "table" => "TableIdx",
+            _ => panic!("{param}"),
+        },
+        "TryTable" => match param {
+            "catches" => "impl IntoIterator<Item = Catch, IntoIter: ExactSizeIterator>",
+            "ty" => "BlockType",
+            _ => panic!("{param}"),
+        },
+        _ => ty,
     }
 }
