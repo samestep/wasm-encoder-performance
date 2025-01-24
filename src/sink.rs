@@ -308,14 +308,14 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Delegate`].
-    pub fn delegate(&mut self, l: u32) -> &mut Self {
+    pub fn delegate(&mut self, l: LabelIdx) -> &mut Self {
         self.sink.push(0x18);
         l.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::Catch`].
-    pub fn catch(&mut self, t: u32) -> &mut Self {
+    pub fn catch(&mut self, t: TagIdx) -> &mut Self {
         self.sink.push(0x07);
         t.encode(self.sink);
         self
@@ -328,7 +328,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Rethrow`].
-    pub fn rethrow(&mut self, l: u32) -> &mut Self {
+    pub fn rethrow(&mut self, l: LabelIdx) -> &mut Self {
         self.sink.push(0x09);
         l.encode(self.sink);
         self
@@ -4727,14 +4727,14 @@ impl<'a> InstructionSink<'a> {
     // Stack switching
 
     /// Encode [`Instruction::ContNew`].
-    pub fn cont_new(&mut self, type_index: u32) -> &mut Self {
+    pub fn cont_new(&mut self, type_index: TypeIdx) -> &mut Self {
         self.sink.push(0xE0);
         type_index.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::ContBind`].
-    pub fn cont_bind(&mut self, argument_index: u32, result_index: u32) -> &mut Self {
+    pub fn cont_bind(&mut self, argument_index: TypeIdx, result_index: TypeIdx) -> &mut Self {
         self.sink.push(0xE1);
         argument_index.encode(self.sink);
         result_index.encode(self.sink);
@@ -4742,7 +4742,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Suspend`].
-    pub fn suspend(&mut self, tag_index: u32) -> &mut Self {
+    pub fn suspend(&mut self, tag_index: TagIdx) -> &mut Self {
         self.sink.push(0xE2);
         tag_index.encode(self.sink);
         self
@@ -4751,7 +4751,7 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::Resume`].
     pub fn resume(
         &mut self,
-        cont_type_index: u32,
+        cont_type_index: TypeIdx,
         resume_table: impl IntoIterator<Item = Handle, IntoIter: ExactSizeIterator>,
     ) -> &mut Self {
         self.sink.push(0xE3);
@@ -4763,8 +4763,8 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::ResumeThrow`].
     pub fn resume_throw(
         &mut self,
-        cont_type_index: u32,
-        tag_index: u32,
+        cont_type_index: TypeIdx,
+        tag_index: TagIdx,
         resume_table: impl IntoIterator<Item = Handle, IntoIter: ExactSizeIterator>,
     ) -> &mut Self {
         self.sink.push(0xE4);
@@ -4775,7 +4775,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Switch`].
-    pub fn switch(&mut self, cont_type_index: u32, tag_index: u32) -> &mut Self {
+    pub fn switch(&mut self, cont_type_index: TypeIdx, tag_index: TagIdx) -> &mut Self {
         self.sink.push(0xE5);
         cont_type_index.encode(self.sink);
         tag_index.encode(self.sink);

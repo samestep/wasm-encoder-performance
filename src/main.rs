@@ -129,16 +129,16 @@ fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
         "ElemDrop" => "ElemIdx",
         "Call" | "RefFunc" | "ReturnCall" => "FuncIdx",
         "GlobalGet" | "GlobalSet" => "GlobalIdx",
-        "Br" | "BrIf" | "BrOnNull" | "BrOnNonNull" => "LabelIdx",
+        "Br" | "BrIf" | "BrOnNull" | "BrOnNonNull" | "Delegate" | "Rethrow" => "LabelIdx",
         "LocalGet" | "LocalSet" | "LocalTee" => "LocalIdx",
         "TableFill" | "TableSet" | "TableGet" | "TableGrow" | "TableSize" | "TableCopy" => {
             "TableIdx"
         }
         "MemoryCopy" | "MemoryDiscard" | "MemoryFill" | "MemoryGrow" | "MemorySize" => "MemIdx",
-        "Throw" => "TagIdx",
+        "Catch" | "Suspend" | "Throw" => "TagIdx",
         "ArrayCopy" | "ArrayFill" | "ArrayGet" | "ArrayGetS" | "ArrayGetU" | "ArrayNew"
-        | "ArrayNewDefault" | "ArraySet" | "CallRef" | "ReturnCallRef" | "StructNew"
-        | "StructNewDefault" => "TypeIdx",
+        | "ArrayNewDefault" | "ArraySet" | "CallRef" | "ContBind" | "ContNew" | "ReturnCallRef"
+        | "StructNew" | "StructNewDefault" => "TypeIdx",
         "ArrayAtomicGet"
         | "ArrayAtomicGetS"
         | "ArrayAtomicGetU"
@@ -197,10 +197,10 @@ fn retype(instruction: &str, param: &str, ty: &'static str) -> &'static str {
             "mem" => "MemIdx",
             _ => panic!("{param}"),
         },
-        "Resume" | "ResumeThrow" => match param {
-            "cont_type_index" => "u32",
+        "Resume" | "ResumeThrow" | "Switch" => match param {
+            "cont_type_index" => "TypeIdx",
             "resume_table" => "impl IntoIterator<Item = Handle, IntoIter: ExactSizeIterator>",
-            "tag_index" => "u32",
+            "tag_index" => "TagIdx",
             _ => panic!("{param}"),
         },
         "StructAtomicGet"

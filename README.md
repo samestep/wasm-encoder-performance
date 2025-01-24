@@ -115,12 +115,12 @@ impl<'a> InstructionSink<'a> {
 Example usage:
 
 ```rust
-use crate::encode::Fun;
+use crate::{encode::Fun, sink::LocalIdx};
 
 let mut f = Fun::new();
 f.sink()
-    .local_get(0)
-    .local_get(1)
+    .local_get(LocalIdx(0))
+    .local_get(LocalIdx(1))
     .i32_add()
     .end();
 ```
