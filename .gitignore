@@ -1,2 +1,4 @@
+/ast-grep.sh
+/ast-grep/
 /generated.rs
 /target/

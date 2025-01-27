@@ -1,10 +1,23 @@
-use std::{collections::HashMap, fs::File, io::Write, mem::take};
+use std::{
+    collections::HashMap,
+    fs::{create_dir, remove_dir_all, write, File},
+    io::Write,
+    mem::take,
+    path::Path,
+};
 
 use regex::Regex;
+use serde::Serialize;
 
 fn main() -> anyhow::Result<()> {
     let variants = include_str!("variants.txt");
     let encodings = include_str!("encodings.txt");
+    let sg_dir = Path::new("ast-grep");
+    let _ = remove_dir_all(sg_dir);
+    create_dir(sg_dir)?;
+    let mut sg = File::create("ast-grep.sh")?;
+    writeln!(sg, "#!/usr/bin/env bash")?;
+    writeln!(sg, "set -x")?;
     let mut encoding_params = HashMap::<&str, Vec<&str>>::new();
     let mut encoding_bodies = HashMap::<&str, Vec<&str>>::new();
     let mut out = File::create("generated.rs")?;
@@ -30,17 +43,40 @@ fn main() -> anyhow::Result<()> {
             name = Some(caps.get(2).unwrap().as_str());
             let snake = snakify(name.unwrap());
             let pat_args = caps.get(3).unwrap().as_str();
+            let mut pat = format!("$FUNC.instruction(&Instruction::{}", name.unwrap());
             if let Some(caps) = re_tuple.captures(pat_args) {
                 params = Some(split(caps.get(1).unwrap().as_str()));
+                pat.push('(');
+                let mut first = true;
+                for param in params.as_ref().unwrap() {
+                    if !first {
+                        pat.push_str(", ");
+                    }
+                    first = false;
+                    pat.push('$');
+                    pat.push_str(&param.to_uppercase());
+                }
+                pat.push(')');
             } else if let Some(caps) = re_struct.captures(pat_args) {
                 params = Some(split(caps.get(1).unwrap().as_str()));
+                pat.push_str(" { ");
+                for param in params.as_ref().unwrap() {
+                    pat.push_str(param);
+                    pat.push_str(": $");
+                    pat.push_str(&param.to_uppercase());
+                    pat.push_str(", ");
+                }
+                pat.push('}');
             } else {
                 assert!(pat_args.is_empty());
                 params = Some(Vec::new());
             }
+            pat.push(')');
+            let mut fix = format!("$FUNC.instructions().{snake}(");
             write!(out, "        Instruction::{pattern} => sink.{snake}(")?;
             let args = params.as_ref().unwrap();
-            if !args.is_empty() {
+            if args.is_empty() {
+            } else {
                 let ordered = if args.len() == 1 {
                     args.to_vec()
                 } else {
@@ -51,6 +87,7 @@ fn main() -> anyhow::Result<()> {
                 for arg in ordered {
                     if !first {
                         write!(out, ", ")?;
+                        fix.push_str(", ");
                     }
                     first = false;
                     if let Some(ty) = retype(name.unwrap(), arg) {
@@ -63,15 +100,37 @@ fn main() -> anyhow::Result<()> {
                                 "TryTable" => write!(out, "catches.iter().cloned()")?,
                                 instruction => panic!("{instruction}"),
                             }
+                            fix.push('$');
+                            fix.push_str(&arg.to_uppercase());
                         } else {
                             write!(out, "{ty}({arg})")?;
+                            fix.push_str(ty);
+                            fix.push_str("($");
+                            fix.push_str(&arg.to_uppercase());
+                            fix.push(')');
                         }
                     } else {
                         write!(out, "{arg}")?;
+                        fix.push('$');
+                        fix.push_str(&arg.to_uppercase());
                     }
                 }
             }
             writeln!(out, "),")?;
+            fix.push(')');
+            write(
+                sg_dir.join(format!("{snake}.json")),
+                serde_json::to_string_pretty(&Rewrite {
+                    id: &snake,
+                    language: "Rust",
+                    rule: Rule { pattern: &pat },
+                    fix: &fix,
+                })?,
+            )?;
+            writeln!(
+                sg,
+                "ast-grep scan --update-all --rule ast-grep/{snake}.json"
+            )?;
         } else if line.starts_with("    ") {
             encoding.push(line);
         } else if line == "}" {
@@ -388,4 +447,17 @@ fn reorder(instruction: &str) -> Vec<&str> {
         }
         _ => panic!("{instruction}"),
     }
+}
+
+#[derive(Serialize)]
+struct Rewrite<'a> {
+    id: &'a str,
+    language: &'static str,
+    rule: Rule<'a>,
+    fix: &'a str,
+}
+
+#[derive(Serialize)]
+struct Rule<'a> {
+    pattern: &'a str,
 }
