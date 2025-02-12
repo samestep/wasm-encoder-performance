@@ -14,33 +14,31 @@ pub fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {
         Instruction::If(bt) => sink.if_(bt),
         Instruction::Else => sink.else_(),
         Instruction::Try(bt) => sink.try_(bt),
-        Instruction::Catch(t) => sink.catch(TagIdx(t)),
-        Instruction::Throw(t) => sink.throw(TagIdx(t)),
-        Instruction::Rethrow(l) => sink.rethrow(LabelIdx(l)),
+        Instruction::Catch(t) => sink.catch(t),
+        Instruction::Throw(t) => sink.throw(t),
+        Instruction::Rethrow(l) => sink.rethrow(l),
         Instruction::ThrowRef => sink.throw_ref(),
         Instruction::End => sink.end(),
-        Instruction::Br(l) => sink.br(LabelIdx(l)),
-        Instruction::BrIf(l) => sink.br_if(LabelIdx(l)),
-        Instruction::BrTable(ref ls, l) => {
-            sink.br_table(ls.iter().copied().map(LabelIdx), LabelIdx(l))
-        }
-        Instruction::BrOnNull(l) => sink.br_on_null(LabelIdx(l)),
-        Instruction::BrOnNonNull(l) => sink.br_on_non_null(LabelIdx(l)),
+        Instruction::Br(l) => sink.br(l),
+        Instruction::BrIf(l) => sink.br_if(l),
+        Instruction::BrTable(ref ls, l) => sink.br_table(ls.iter().copied(), l),
+        Instruction::BrOnNull(l) => sink.br_on_null(l),
+        Instruction::BrOnNonNull(l) => sink.br_on_non_null(l),
         Instruction::Return => sink.return_(),
-        Instruction::Call(f) => sink.call(FuncIdx(f)),
-        Instruction::CallRef(ty) => sink.call_ref(TypeIdx(ty)),
+        Instruction::Call(f) => sink.call(f),
+        Instruction::CallRef(ty) => sink.call_ref(ty),
         Instruction::CallIndirect {
             type_index,
             table_index,
-        } => sink.call_indirect(TableIdx(table_index), TypeIdx(type_index)),
-        Instruction::ReturnCallRef(ty) => sink.return_call_ref(TypeIdx(ty)),
+        } => sink.call_indirect(table_index, type_index),
+        Instruction::ReturnCallRef(ty) => sink.return_call_ref(ty),
 
-        Instruction::ReturnCall(f) => sink.return_call(FuncIdx(f)),
+        Instruction::ReturnCall(f) => sink.return_call(f),
         Instruction::ReturnCallIndirect {
             type_index,
             table_index,
-        } => sink.return_call_indirect(TableIdx(table_index), TypeIdx(type_index)),
-        Instruction::Delegate(l) => sink.delegate(LabelIdx(l)),
+        } => sink.return_call_indirect(table_index, type_index),
+        Instruction::Delegate(l) => sink.delegate(l),
         Instruction::CatchAll => sink.catch_all(),
 
         // Parametric instructions.
@@ -51,13 +49,13 @@ pub fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {
         Instruction::TryTable(ty, ref catches) => sink.try_table(ty, catches.iter().cloned()),
 
         // Variable instructions.
-        Instruction::LocalGet(l) => sink.local_get(LocalIdx(l)),
-        Instruction::LocalSet(l) => sink.local_set(LocalIdx(l)),
-        Instruction::LocalTee(l) => sink.local_tee(LocalIdx(l)),
-        Instruction::GlobalGet(g) => sink.global_get(GlobalIdx(g)),
-        Instruction::GlobalSet(g) => sink.global_set(GlobalIdx(g)),
-        Instruction::TableGet(table) => sink.table_get(TableIdx(table)),
-        Instruction::TableSet(table) => sink.table_set(TableIdx(table)),
+        Instruction::LocalGet(l) => sink.local_get(l),
+        Instruction::LocalSet(l) => sink.local_set(l),
+        Instruction::LocalTee(l) => sink.local_tee(l),
+        Instruction::GlobalGet(g) => sink.global_get(g),
+        Instruction::GlobalSet(g) => sink.global_set(g),
+        Instruction::TableGet(table) => sink.table_get(table),
+        Instruction::TableSet(table) => sink.table_set(table),
 
         // Memory instructions.
         Instruction::I32Load(m) => sink.i32_load(m),
@@ -83,17 +81,13 @@ pub fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {
         Instruction::I64Store8(m) => sink.i64_store8(m),
         Instruction::I64Store16(m) => sink.i64_store16(m),
         Instruction::I64Store32(m) => sink.i64_store32(m),
-        Instruction::MemorySize(i) => sink.memory_size(MemIdx(i)),
-        Instruction::MemoryGrow(i) => sink.memory_grow(MemIdx(i)),
-        Instruction::MemoryInit { mem, data_index } => {
-            sink.memory_init(MemIdx(mem), DataIdx(data_index))
-        }
-        Instruction::DataDrop(data) => sink.data_drop(DataIdx(data)),
-        Instruction::MemoryCopy { src_mem, dst_mem } => {
-            sink.memory_copy(MemIdx(dst_mem), MemIdx(src_mem))
-        }
-        Instruction::MemoryFill(mem) => sink.memory_fill(MemIdx(mem)),
-        Instruction::MemoryDiscard(mem) => sink.memory_discard(MemIdx(mem)),
+        Instruction::MemorySize(i) => sink.memory_size(i),
+        Instruction::MemoryGrow(i) => sink.memory_grow(i),
+        Instruction::MemoryInit { mem, data_index } => sink.memory_init(mem, data_index),
+        Instruction::DataDrop(data) => sink.data_drop(data),
+        Instruction::MemoryCopy { src_mem, dst_mem } => sink.memory_copy(dst_mem, src_mem),
+        Instruction::MemoryFill(mem) => sink.memory_fill(mem),
+        Instruction::MemoryDiscard(mem) => sink.memory_discard(mem),
 
         // Numeric instructions.
         Instruction::I32Const(x) => sink.i32_const(x),
@@ -241,61 +235,61 @@ pub fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {
         // Reference types instructions.
         Instruction::RefNull(ty) => sink.ref_null(ty),
         Instruction::RefIsNull => sink.ref_is_null(),
-        Instruction::RefFunc(f) => sink.ref_func(FuncIdx(f)),
+        Instruction::RefFunc(f) => sink.ref_func(f),
         Instruction::RefEq => sink.ref_eq(),
         Instruction::RefAsNonNull => sink.ref_as_non_null(),
 
         // GC instructions.
-        Instruction::StructNew(type_index) => sink.struct_new(TypeIdx(type_index)),
-        Instruction::StructNewDefault(type_index) => sink.struct_new_default(TypeIdx(type_index)),
+        Instruction::StructNew(type_index) => sink.struct_new(type_index),
+        Instruction::StructNewDefault(type_index) => sink.struct_new_default(type_index),
         Instruction::StructGet {
             struct_type_index,
             field_index,
-        } => sink.struct_get(TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_get(struct_type_index, field_index),
         Instruction::StructGetS {
             struct_type_index,
             field_index,
-        } => sink.struct_get_s(TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_get_s(struct_type_index, field_index),
         Instruction::StructGetU {
             struct_type_index,
             field_index,
-        } => sink.struct_get_u(TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_get_u(struct_type_index, field_index),
         Instruction::StructSet {
             struct_type_index,
             field_index,
-        } => sink.struct_set(TypeIdx(struct_type_index), FieldIdx(field_index)),
-        Instruction::ArrayNew(type_index) => sink.array_new(TypeIdx(type_index)),
-        Instruction::ArrayNewDefault(type_index) => sink.array_new_default(TypeIdx(type_index)),
+        } => sink.struct_set(struct_type_index, field_index),
+        Instruction::ArrayNew(type_index) => sink.array_new(type_index),
+        Instruction::ArrayNewDefault(type_index) => sink.array_new_default(type_index),
         Instruction::ArrayNewFixed {
             array_type_index,
             array_size,
-        } => sink.array_new_fixed(TypeIdx(array_type_index), array_size),
+        } => sink.array_new_fixed(array_type_index, array_size),
         Instruction::ArrayNewData {
             array_type_index,
             array_data_index,
-        } => sink.array_new_data(TypeIdx(array_type_index), DataIdx(array_data_index)),
+        } => sink.array_new_data(array_type_index, array_data_index),
         Instruction::ArrayNewElem {
             array_type_index,
             array_elem_index,
-        } => sink.array_new_elem(TypeIdx(array_type_index), ElemIdx(array_elem_index)),
-        Instruction::ArrayGet(type_index) => sink.array_get(TypeIdx(type_index)),
-        Instruction::ArrayGetS(type_index) => sink.array_get_s(TypeIdx(type_index)),
-        Instruction::ArrayGetU(type_index) => sink.array_get_u(TypeIdx(type_index)),
-        Instruction::ArraySet(type_index) => sink.array_set(TypeIdx(type_index)),
+        } => sink.array_new_elem(array_type_index, array_elem_index),
+        Instruction::ArrayGet(type_index) => sink.array_get(type_index),
+        Instruction::ArrayGetS(type_index) => sink.array_get_s(type_index),
+        Instruction::ArrayGetU(type_index) => sink.array_get_u(type_index),
+        Instruction::ArraySet(type_index) => sink.array_set(type_index),
         Instruction::ArrayLen => sink.array_len(),
-        Instruction::ArrayFill(type_index) => sink.array_fill(TypeIdx(type_index)),
+        Instruction::ArrayFill(type_index) => sink.array_fill(type_index),
         Instruction::ArrayCopy {
             array_type_index_dst,
             array_type_index_src,
-        } => sink.array_copy(TypeIdx(array_type_index_dst), TypeIdx(array_type_index_src)),
+        } => sink.array_copy(array_type_index_dst, array_type_index_src),
         Instruction::ArrayInitData {
             array_type_index,
             array_data_index,
-        } => sink.array_init_data(TypeIdx(array_type_index), DataIdx(array_data_index)),
+        } => sink.array_init_data(array_type_index, array_data_index),
         Instruction::ArrayInitElem {
             array_type_index,
             array_elem_index,
-        } => sink.array_init_elem(TypeIdx(array_type_index), ElemIdx(array_elem_index)),
+        } => sink.array_init_elem(array_type_index, array_elem_index),
         Instruction::RefTestNonNull(heap_type) => sink.ref_test_non_null(heap_type),
         Instruction::RefTestNullable(heap_type) => sink.ref_test_nullable(heap_type),
         Instruction::RefCastNonNull(heap_type) => sink.ref_cast_non_null(heap_type),
@@ -304,12 +298,12 @@ pub fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {
             relative_depth,
             from_ref_type,
             to_ref_type,
-        } => sink.br_on_cast(LabelIdx(relative_depth), from_ref_type, to_ref_type),
+        } => sink.br_on_cast(relative_depth, from_ref_type, to_ref_type),
         Instruction::BrOnCastFail {
             relative_depth,
             from_ref_type,
             to_ref_type,
-        } => sink.br_on_cast_fail(LabelIdx(relative_depth), from_ref_type, to_ref_type),
+        } => sink.br_on_cast_fail(relative_depth, from_ref_type, to_ref_type),
         Instruction::AnyConvertExtern => sink.any_convert_extern(),
         Instruction::ExternConvertAny => sink.extern_convert_any(),
         Instruction::RefI31 => sink.ref_i31(),
@@ -317,17 +311,15 @@ pub fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {
         Instruction::I31GetU => sink.i31_get_u(),
 
         // Bulk memory instructions.
-        Instruction::TableInit { elem_index, table } => {
-            sink.table_init(TableIdx(table), ElemIdx(elem_index))
-        }
-        Instruction::ElemDrop(segment) => sink.elem_drop(ElemIdx(segment)),
+        Instruction::TableInit { elem_index, table } => sink.table_init(table, elem_index),
+        Instruction::ElemDrop(segment) => sink.elem_drop(segment),
         Instruction::TableCopy {
             src_table,
             dst_table,
-        } => sink.table_copy(TableIdx(dst_table), TableIdx(src_table)),
-        Instruction::TableGrow(table) => sink.table_grow(TableIdx(table)),
-        Instruction::TableSize(table) => sink.table_size(TableIdx(table)),
-        Instruction::TableFill(table) => sink.table_fill(TableIdx(table)),
+        } => sink.table_copy(dst_table, src_table),
+        Instruction::TableGrow(table) => sink.table_grow(table),
+        Instruction::TableSize(table) => sink.table_size(table),
+        Instruction::TableFill(table) => sink.table_fill(table),
 
         // SIMD instructions.
         Instruction::V128Load(memarg) => sink.v128_load(memarg),
@@ -661,192 +653,174 @@ pub fn encode_instruction(instruction: &Instruction, bytes: &mut Vec<u8>) {
         Instruction::GlobalAtomicGet {
             ordering,
             global_index,
-        } => sink.global_atomic_get(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_get(ordering, global_index),
         Instruction::GlobalAtomicSet {
             ordering,
             global_index,
-        } => sink.global_atomic_set(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_set(ordering, global_index),
         Instruction::GlobalAtomicRmwAdd {
             ordering,
             global_index,
-        } => sink.global_atomic_rmw_add(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_rmw_add(ordering, global_index),
         Instruction::GlobalAtomicRmwSub {
             ordering,
             global_index,
-        } => sink.global_atomic_rmw_sub(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_rmw_sub(ordering, global_index),
         Instruction::GlobalAtomicRmwAnd {
             ordering,
             global_index,
-        } => sink.global_atomic_rmw_and(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_rmw_and(ordering, global_index),
         Instruction::GlobalAtomicRmwOr {
             ordering,
             global_index,
-        } => sink.global_atomic_rmw_or(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_rmw_or(ordering, global_index),
         Instruction::GlobalAtomicRmwXor {
             ordering,
             global_index,
-        } => sink.global_atomic_rmw_xor(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_rmw_xor(ordering, global_index),
         Instruction::GlobalAtomicRmwXchg {
             ordering,
             global_index,
-        } => sink.global_atomic_rmw_xchg(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_rmw_xchg(ordering, global_index),
         Instruction::GlobalAtomicRmwCmpxchg {
             ordering,
             global_index,
-        } => sink.global_atomic_rmw_cmpxchg(ordering, GlobalIdx(global_index)),
+        } => sink.global_atomic_rmw_cmpxchg(ordering, global_index),
         Instruction::TableAtomicGet {
             ordering,
             table_index,
-        } => sink.table_atomic_get(ordering, TableIdx(table_index)),
+        } => sink.table_atomic_get(ordering, table_index),
         Instruction::TableAtomicSet {
             ordering,
             table_index,
-        } => sink.table_atomic_set(ordering, TableIdx(table_index)),
+        } => sink.table_atomic_set(ordering, table_index),
         Instruction::TableAtomicRmwXchg {
             ordering,
             table_index,
-        } => sink.table_atomic_rmw_xchg(ordering, TableIdx(table_index)),
+        } => sink.table_atomic_rmw_xchg(ordering, table_index),
         Instruction::TableAtomicRmwCmpxchg {
             ordering,
             table_index,
-        } => sink.table_atomic_rmw_cmpxchg(ordering, TableIdx(table_index)),
+        } => sink.table_atomic_rmw_cmpxchg(ordering, table_index),
         Instruction::StructAtomicGet {
             ordering,
             struct_type_index,
             field_index,
-        } => sink.struct_atomic_get(ordering, TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_atomic_get(ordering, struct_type_index, field_index),
         Instruction::StructAtomicGetS {
             ordering,
             struct_type_index,
             field_index,
-        } => sink.struct_atomic_get_s(ordering, TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_atomic_get_s(ordering, struct_type_index, field_index),
         Instruction::StructAtomicGetU {
             ordering,
             struct_type_index,
             field_index,
-        } => sink.struct_atomic_get_u(ordering, TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_atomic_get_u(ordering, struct_type_index, field_index),
         Instruction::StructAtomicSet {
             ordering,
             struct_type_index,
             field_index,
-        } => sink.struct_atomic_set(ordering, TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_atomic_set(ordering, struct_type_index, field_index),
         Instruction::StructAtomicRmwAdd {
             ordering,
             struct_type_index,
             field_index,
-        } => {
-            sink.struct_atomic_rmw_add(ordering, TypeIdx(struct_type_index), FieldIdx(field_index))
-        }
+        } => sink.struct_atomic_rmw_add(ordering, struct_type_index, field_index),
         Instruction::StructAtomicRmwSub {
             ordering,
             struct_type_index,
             field_index,
-        } => {
-            sink.struct_atomic_rmw_sub(ordering, TypeIdx(struct_type_index), FieldIdx(field_index))
-        }
+        } => sink.struct_atomic_rmw_sub(ordering, struct_type_index, field_index),
         Instruction::StructAtomicRmwAnd {
             ordering,
             struct_type_index,
             field_index,
-        } => {
-            sink.struct_atomic_rmw_and(ordering, TypeIdx(struct_type_index), FieldIdx(field_index))
-        }
+        } => sink.struct_atomic_rmw_and(ordering, struct_type_index, field_index),
         Instruction::StructAtomicRmwOr {
             ordering,
             struct_type_index,
             field_index,
-        } => sink.struct_atomic_rmw_or(ordering, TypeIdx(struct_type_index), FieldIdx(field_index)),
+        } => sink.struct_atomic_rmw_or(ordering, struct_type_index, field_index),
         Instruction::StructAtomicRmwXor {
             ordering,
             struct_type_index,
             field_index,
-        } => {
-            sink.struct_atomic_rmw_xor(ordering, TypeIdx(struct_type_index), FieldIdx(field_index))
-        }
+        } => sink.struct_atomic_rmw_xor(ordering, struct_type_index, field_index),
         Instruction::StructAtomicRmwXchg {
             ordering,
             struct_type_index,
             field_index,
-        } => {
-            sink.struct_atomic_rmw_xchg(ordering, TypeIdx(struct_type_index), FieldIdx(field_index))
-        }
+        } => sink.struct_atomic_rmw_xchg(ordering, struct_type_index, field_index),
         Instruction::StructAtomicRmwCmpxchg {
             ordering,
             struct_type_index,
             field_index,
-        } => sink.struct_atomic_rmw_cmpxchg(
-            ordering,
-            TypeIdx(struct_type_index),
-            FieldIdx(field_index),
-        ),
+        } => sink.struct_atomic_rmw_cmpxchg(ordering, struct_type_index, field_index),
         Instruction::ArrayAtomicGet {
             ordering,
             array_type_index,
-        } => sink.array_atomic_get(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_get(ordering, array_type_index),
         Instruction::ArrayAtomicGetS {
             ordering,
             array_type_index,
-        } => sink.array_atomic_get_s(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_get_s(ordering, array_type_index),
         Instruction::ArrayAtomicGetU {
             ordering,
             array_type_index,
-        } => sink.array_atomic_get_u(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_get_u(ordering, array_type_index),
         Instruction::ArrayAtomicSet {
             ordering,
             array_type_index,
-        } => sink.array_atomic_set(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_set(ordering, array_type_index),
         Instruction::ArrayAtomicRmwAdd {
             ordering,
             array_type_index,
-        } => sink.array_atomic_rmw_add(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_rmw_add(ordering, array_type_index),
         Instruction::ArrayAtomicRmwSub {
             ordering,
             array_type_index,
-        } => sink.array_atomic_rmw_sub(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_rmw_sub(ordering, array_type_index),
         Instruction::ArrayAtomicRmwAnd {
             ordering,
             array_type_index,
-        } => sink.array_atomic_rmw_and(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_rmw_and(ordering, array_type_index),
         Instruction::ArrayAtomicRmwOr {
             ordering,
             array_type_index,
-        } => sink.array_atomic_rmw_or(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_rmw_or(ordering, array_type_index),
         Instruction::ArrayAtomicRmwXor {
             ordering,
             array_type_index,
-        } => sink.array_atomic_rmw_xor(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_rmw_xor(ordering, array_type_index),
         Instruction::ArrayAtomicRmwXchg {
             ordering,
             array_type_index,
-        } => sink.array_atomic_rmw_xchg(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_rmw_xchg(ordering, array_type_index),
         Instruction::ArrayAtomicRmwCmpxchg {
             ordering,
             array_type_index,
-        } => sink.array_atomic_rmw_cmpxchg(ordering, TypeIdx(array_type_index)),
+        } => sink.array_atomic_rmw_cmpxchg(ordering, array_type_index),
         Instruction::RefI31Shared => sink.ref_i31_shared(),
-        Instruction::ContNew(type_index) => sink.cont_new(TypeIdx(type_index)),
+        Instruction::ContNew(type_index) => sink.cont_new(type_index),
         Instruction::ContBind {
             argument_index,
             result_index,
-        } => sink.cont_bind(TypeIdx(argument_index), TypeIdx(result_index)),
-        Instruction::Suspend(tag_index) => sink.suspend(TagIdx(tag_index)),
+        } => sink.cont_bind(argument_index, result_index),
+        Instruction::Suspend(tag_index) => sink.suspend(tag_index),
         Instruction::Resume {
             cont_type_index,
             ref resume_table,
-        } => sink.resume(TypeIdx(cont_type_index), resume_table.iter().cloned()),
+        } => sink.resume(cont_type_index, resume_table.iter().cloned()),
         Instruction::ResumeThrow {
             cont_type_index,
             tag_index,
             ref resume_table,
-        } => sink.resume_throw(
-            TypeIdx(cont_type_index),
-            TagIdx(tag_index),
-            resume_table.iter().cloned(),
-        ),
+        } => sink.resume_throw(cont_type_index, tag_index, resume_table.iter().cloned()),
         Instruction::Switch {
             cont_type_index,
             tag_index,
-        } => sink.switch(TypeIdx(cont_type_index), TagIdx(tag_index)),
+        } => sink.switch(cont_type_index, tag_index),
         Instruction::I64Add128 => sink.i64_add128(),
         Instruction::I64Sub128 => sink.i64_sub128(),
         Instruction::I64MulWideS => sink.i64_mul_wide_s(),
@@ -865,122 +839,6 @@ where
     u32::try_from(elements.len()).unwrap().encode(sink);
     for x in elements {
         x.encode(sink);
-    }
-}
-
-/// A Wasm _typeidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct TypeIdx(pub u32);
-
-/// A Wasm _funcidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct FuncIdx(pub u32);
-
-/// A Wasm _tableidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct TableIdx(pub u32);
-
-/// A Wasm _memidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct MemIdx(pub u32);
-
-/// A Wasm _tagidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct TagIdx(pub u32);
-
-/// A Wasm _globalidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct GlobalIdx(pub u32);
-
-/// A Wasm _elemidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct ElemIdx(pub u32);
-
-/// A Wasm _dataidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct DataIdx(pub u32);
-
-/// A Wasm _localidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct LocalIdx(pub u32);
-
-/// A Wasm _labelidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct LabelIdx(pub u32);
-
-/// A Wasm _fieldidx_.
-#[derive(Clone, Copy, Debug)]
-pub struct FieldIdx(pub u32);
-
-impl Encode for TypeIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for FuncIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for TableIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for MemIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for TagIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for GlobalIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for ElemIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for DataIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for LocalIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for LabelIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl Encode for FieldIdx {
-    fn encode(&self, sink: &mut Vec<u8>) {
-        self.0.encode(sink);
-    }
-}
-
-impl From<MemIdx> for u32 {
-    fn from(value: MemIdx) -> Self {
-        value.0
     }
 }
 
@@ -1043,14 +901,14 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Br`].
-    pub fn br(&mut self, l: LabelIdx) -> &mut Self {
+    pub fn br(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x0C);
         l.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::BrIf`].
-    pub fn br_if(&mut self, l: LabelIdx) -> &mut Self {
+    pub fn br_if(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x0D);
         l.encode(self.sink);
         self
@@ -1059,8 +917,8 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::BrTable`].
     pub fn br_table(
         &mut self,
-        ls: impl IntoIterator<Item = LabelIdx, IntoIter: ExactSizeIterator>,
-        l: LabelIdx,
+        ls: impl IntoIterator<Item = u32, IntoIter: ExactSizeIterator>,
+        l: u32,
     ) -> &mut Self {
         self.sink.push(0x0E);
         encode_vec(ls, self.sink);
@@ -1069,14 +927,14 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::BrOnNull`].
-    pub fn br_on_null(&mut self, l: LabelIdx) -> &mut Self {
+    pub fn br_on_null(&mut self, l: u32) -> &mut Self {
         self.sink.push(0xD5);
         l.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::BrOnNonNull`].
-    pub fn br_on_non_null(&mut self, l: LabelIdx) -> &mut Self {
+    pub fn br_on_non_null(&mut self, l: u32) -> &mut Self {
         self.sink.push(0xD6);
         l.encode(self.sink);
         self
@@ -1089,21 +947,21 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Call`].
-    pub fn call(&mut self, f: FuncIdx) -> &mut Self {
+    pub fn call(&mut self, f: u32) -> &mut Self {
         self.sink.push(0x10);
         f.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::CallRef`].
-    pub fn call_ref(&mut self, ty: TypeIdx) -> &mut Self {
+    pub fn call_ref(&mut self, ty: u32) -> &mut Self {
         self.sink.push(0x14);
         ty.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::CallIndirect`].
-    pub fn call_indirect(&mut self, table_index: TableIdx, type_index: TypeIdx) -> &mut Self {
+    pub fn call_indirect(&mut self, table_index: u32, type_index: u32) -> &mut Self {
         self.sink.push(0x11);
         type_index.encode(self.sink);
         table_index.encode(self.sink);
@@ -1111,25 +969,21 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ReturnCallRef`].
-    pub fn return_call_ref(&mut self, ty: TypeIdx) -> &mut Self {
+    pub fn return_call_ref(&mut self, ty: u32) -> &mut Self {
         self.sink.push(0x15);
         ty.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::ReturnCall`].
-    pub fn return_call(&mut self, f: FuncIdx) -> &mut Self {
+    pub fn return_call(&mut self, f: u32) -> &mut Self {
         self.sink.push(0x12);
         f.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::ReturnCallIndirect`].
-    pub fn return_call_indirect(
-        &mut self,
-        table_index: TableIdx,
-        type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn return_call_indirect(&mut self, table_index: u32, type_index: u32) -> &mut Self {
         self.sink.push(0x13);
         type_index.encode(self.sink);
         table_index.encode(self.sink);
@@ -1149,7 +1003,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Throw`].
-    pub fn throw(&mut self, t: TagIdx) -> &mut Self {
+    pub fn throw(&mut self, t: u32) -> &mut Self {
         self.sink.push(0x08);
         t.encode(self.sink);
         self
@@ -1171,14 +1025,14 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Delegate`].
-    pub fn delegate(&mut self, l: LabelIdx) -> &mut Self {
+    pub fn delegate(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x18);
         l.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::Catch`].
-    pub fn catch(&mut self, t: TagIdx) -> &mut Self {
+    pub fn catch(&mut self, t: u32) -> &mut Self {
         self.sink.push(0x07);
         t.encode(self.sink);
         self
@@ -1191,7 +1045,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Rethrow`].
-    pub fn rethrow(&mut self, l: LabelIdx) -> &mut Self {
+    pub fn rethrow(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x09);
         l.encode(self.sink);
         self
@@ -1214,35 +1068,35 @@ impl<'a> InstructionSink<'a> {
     // Variable instructions.
 
     /// Encode [`Instruction::LocalGet`].
-    pub fn local_get(&mut self, l: LocalIdx) -> &mut Self {
+    pub fn local_get(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x20);
         l.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::LocalSet`].
-    pub fn local_set(&mut self, l: LocalIdx) -> &mut Self {
+    pub fn local_set(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x21);
         l.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::LocalTee`].
-    pub fn local_tee(&mut self, l: LocalIdx) -> &mut Self {
+    pub fn local_tee(&mut self, l: u32) -> &mut Self {
         self.sink.push(0x22);
         l.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::GlobalGet`].
-    pub fn global_get(&mut self, g: GlobalIdx) -> &mut Self {
+    pub fn global_get(&mut self, g: u32) -> &mut Self {
         self.sink.push(0x23);
         g.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::GlobalSet`].
-    pub fn global_set(&mut self, g: GlobalIdx) -> &mut Self {
+    pub fn global_set(&mut self, g: u32) -> &mut Self {
         self.sink.push(0x24);
         g.encode(self.sink);
         self
@@ -1412,21 +1266,21 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::MemorySize`].
-    pub fn memory_size(&mut self, i: MemIdx) -> &mut Self {
+    pub fn memory_size(&mut self, i: u32) -> &mut Self {
         self.sink.push(0x3F);
         i.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::MemoryGrow`].
-    pub fn memory_grow(&mut self, i: MemIdx) -> &mut Self {
+    pub fn memory_grow(&mut self, i: u32) -> &mut Self {
         self.sink.push(0x40);
         i.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::MemoryInit`].
-    pub fn memory_init(&mut self, mem: MemIdx, data_index: DataIdx) -> &mut Self {
+    pub fn memory_init(&mut self, mem: u32, data_index: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x08);
         data_index.encode(self.sink);
@@ -1435,7 +1289,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::DataDrop`].
-    pub fn data_drop(&mut self, data: DataIdx) -> &mut Self {
+    pub fn data_drop(&mut self, data: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x09);
         data.encode(self.sink);
@@ -1443,7 +1297,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::MemoryCopy`].
-    pub fn memory_copy(&mut self, dst_mem: MemIdx, src_mem: MemIdx) -> &mut Self {
+    pub fn memory_copy(&mut self, dst_mem: u32, src_mem: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x0a);
         dst_mem.encode(self.sink);
@@ -1452,7 +1306,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::MemoryFill`].
-    pub fn memory_fill(&mut self, mem: MemIdx) -> &mut Self {
+    pub fn memory_fill(&mut self, mem: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x0b);
         mem.encode(self.sink);
@@ -1460,7 +1314,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::MemoryDiscard`].
-    pub fn memory_discard(&mut self, mem: MemIdx) -> &mut Self {
+    pub fn memory_discard(&mut self, mem: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x12);
         mem.encode(self.sink);
@@ -2346,7 +2200,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::RefFunc`].
-    pub fn ref_func(&mut self, f: FuncIdx) -> &mut Self {
+    pub fn ref_func(&mut self, f: u32) -> &mut Self {
         self.sink.push(0xd2);
         f.encode(self.sink);
         self
@@ -2367,7 +2221,7 @@ impl<'a> InstructionSink<'a> {
     // GC types instructions.
 
     /// Encode [`Instruction::StructNew`].
-    pub fn struct_new(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn struct_new(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x00);
         type_index.encode(self.sink);
@@ -2375,7 +2229,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructNewDefault`].
-    pub fn struct_new_default(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn struct_new_default(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x01);
         type_index.encode(self.sink);
@@ -2383,7 +2237,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructGet`].
-    pub fn struct_get(&mut self, struct_type_index: TypeIdx, field_index: FieldIdx) -> &mut Self {
+    pub fn struct_get(&mut self, struct_type_index: u32, field_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x02);
         struct_type_index.encode(self.sink);
@@ -2392,7 +2246,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructGetS`].
-    pub fn struct_get_s(&mut self, struct_type_index: TypeIdx, field_index: FieldIdx) -> &mut Self {
+    pub fn struct_get_s(&mut self, struct_type_index: u32, field_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x03);
         struct_type_index.encode(self.sink);
@@ -2401,7 +2255,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructGetU`].
-    pub fn struct_get_u(&mut self, struct_type_index: TypeIdx, field_index: FieldIdx) -> &mut Self {
+    pub fn struct_get_u(&mut self, struct_type_index: u32, field_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x04);
         struct_type_index.encode(self.sink);
@@ -2410,7 +2264,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::StructSet`].
-    pub fn struct_set(&mut self, struct_type_index: TypeIdx, field_index: FieldIdx) -> &mut Self {
+    pub fn struct_set(&mut self, struct_type_index: u32, field_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x05);
         struct_type_index.encode(self.sink);
@@ -2419,7 +2273,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayNew`].
-    pub fn array_new(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn array_new(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x06);
         type_index.encode(self.sink);
@@ -2427,7 +2281,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayNewDefault`].
-    pub fn array_new_default(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn array_new_default(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x07);
         type_index.encode(self.sink);
@@ -2435,7 +2289,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayNewFixed`].
-    pub fn array_new_fixed(&mut self, array_type_index: TypeIdx, array_size: u32) -> &mut Self {
+    pub fn array_new_fixed(&mut self, array_type_index: u32, array_size: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x08);
         array_type_index.encode(self.sink);
@@ -2444,11 +2298,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayNewData`].
-    pub fn array_new_data(
-        &mut self,
-        array_type_index: TypeIdx,
-        array_data_index: DataIdx,
-    ) -> &mut Self {
+    pub fn array_new_data(&mut self, array_type_index: u32, array_data_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x09);
         array_type_index.encode(self.sink);
@@ -2457,11 +2307,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayNewElem`].
-    pub fn array_new_elem(
-        &mut self,
-        array_type_index: TypeIdx,
-        array_elem_index: ElemIdx,
-    ) -> &mut Self {
+    pub fn array_new_elem(&mut self, array_type_index: u32, array_elem_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x0a);
         array_type_index.encode(self.sink);
@@ -2470,7 +2316,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayGet`].
-    pub fn array_get(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn array_get(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x0b);
         type_index.encode(self.sink);
@@ -2478,7 +2324,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayGetS`].
-    pub fn array_get_s(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn array_get_s(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x0c);
         type_index.encode(self.sink);
@@ -2486,7 +2332,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayGetU`].
-    pub fn array_get_u(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn array_get_u(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x0d);
         type_index.encode(self.sink);
@@ -2494,7 +2340,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArraySet`].
-    pub fn array_set(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn array_set(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x0e);
         type_index.encode(self.sink);
@@ -2509,7 +2355,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayFill`].
-    pub fn array_fill(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn array_fill(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x10);
         type_index.encode(self.sink);
@@ -2519,8 +2365,8 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::ArrayCopy`].
     pub fn array_copy(
         &mut self,
-        array_type_index_dst: TypeIdx,
-        array_type_index_src: TypeIdx,
+        array_type_index_dst: u32,
+        array_type_index_src: u32,
     ) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x11);
@@ -2530,11 +2376,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayInitData`].
-    pub fn array_init_data(
-        &mut self,
-        array_type_index: TypeIdx,
-        array_data_index: DataIdx,
-    ) -> &mut Self {
+    pub fn array_init_data(&mut self, array_type_index: u32, array_data_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x12);
         array_type_index.encode(self.sink);
@@ -2543,11 +2385,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayInitElem`].
-    pub fn array_init_elem(
-        &mut self,
-        array_type_index: TypeIdx,
-        array_elem_index: ElemIdx,
-    ) -> &mut Self {
+    pub fn array_init_elem(&mut self, array_type_index: u32, array_elem_index: u32) -> &mut Self {
         self.sink.push(0xfb);
         self.sink.push(0x13);
         array_type_index.encode(self.sink);
@@ -2590,7 +2428,7 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::BrOnCast`].
     pub fn br_on_cast(
         &mut self,
-        relative_depth: LabelIdx,
+        relative_depth: u32,
         from_ref_type: RefType,
         to_ref_type: RefType,
     ) -> &mut Self {
@@ -2607,7 +2445,7 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::BrOnCastFail`].
     pub fn br_on_cast_fail(
         &mut self,
-        relative_depth: LabelIdx,
+        relative_depth: u32,
         from_ref_type: RefType,
         to_ref_type: RefType,
     ) -> &mut Self {
@@ -2659,7 +2497,7 @@ impl<'a> InstructionSink<'a> {
     // Bulk memory instructions.
 
     /// Encode [`Instruction::TableInit`].
-    pub fn table_init(&mut self, table: TableIdx, elem_index: ElemIdx) -> &mut Self {
+    pub fn table_init(&mut self, table: u32, elem_index: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x0c);
         elem_index.encode(self.sink);
@@ -2668,7 +2506,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ElemDrop`].
-    pub fn elem_drop(&mut self, segment: ElemIdx) -> &mut Self {
+    pub fn elem_drop(&mut self, segment: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x0d);
         segment.encode(self.sink);
@@ -2676,7 +2514,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableFill`].
-    pub fn table_fill(&mut self, table: TableIdx) -> &mut Self {
+    pub fn table_fill(&mut self, table: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x11);
         table.encode(self.sink);
@@ -2684,21 +2522,21 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableSet`].
-    pub fn table_set(&mut self, table: TableIdx) -> &mut Self {
+    pub fn table_set(&mut self, table: u32) -> &mut Self {
         self.sink.push(0x26);
         table.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::TableGet`].
-    pub fn table_get(&mut self, table: TableIdx) -> &mut Self {
+    pub fn table_get(&mut self, table: u32) -> &mut Self {
         self.sink.push(0x25);
         table.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::TableGrow`].
-    pub fn table_grow(&mut self, table: TableIdx) -> &mut Self {
+    pub fn table_grow(&mut self, table: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x0f);
         table.encode(self.sink);
@@ -2706,7 +2544,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableSize`].
-    pub fn table_size(&mut self, table: TableIdx) -> &mut Self {
+    pub fn table_size(&mut self, table: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x10);
         table.encode(self.sink);
@@ -2714,7 +2552,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableCopy`].
-    pub fn table_copy(&mut self, dst_table: TableIdx, src_table: TableIdx) -> &mut Self {
+    pub fn table_copy(&mut self, dst_table: u32, src_table: u32) -> &mut Self {
         self.sink.push(0xfc);
         self.sink.push(0x0e);
         dst_table.encode(self.sink);
@@ -5128,7 +4966,7 @@ impl<'a> InstructionSink<'a> {
     // More atomic instructions (the shared-everything-threads proposal)
 
     /// Encode [`Instruction::GlobalAtomicGet`].
-    pub fn global_atomic_get(&mut self, ordering: Ordering, global_index: GlobalIdx) -> &mut Self {
+    pub fn global_atomic_get(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x4F);
         ordering.encode(self.sink);
@@ -5137,7 +4975,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicSet`].
-    pub fn global_atomic_set(&mut self, ordering: Ordering, global_index: GlobalIdx) -> &mut Self {
+    pub fn global_atomic_set(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x50);
         ordering.encode(self.sink);
@@ -5146,11 +4984,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicRmwAdd`].
-    pub fn global_atomic_rmw_add(
-        &mut self,
-        ordering: Ordering,
-        global_index: GlobalIdx,
-    ) -> &mut Self {
+    pub fn global_atomic_rmw_add(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x51);
         ordering.encode(self.sink);
@@ -5159,11 +4993,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicRmwSub`].
-    pub fn global_atomic_rmw_sub(
-        &mut self,
-        ordering: Ordering,
-        global_index: GlobalIdx,
-    ) -> &mut Self {
+    pub fn global_atomic_rmw_sub(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x52);
         ordering.encode(self.sink);
@@ -5172,11 +5002,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicRmwAnd`].
-    pub fn global_atomic_rmw_and(
-        &mut self,
-        ordering: Ordering,
-        global_index: GlobalIdx,
-    ) -> &mut Self {
+    pub fn global_atomic_rmw_and(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x53);
         ordering.encode(self.sink);
@@ -5185,11 +5011,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicRmwOr`].
-    pub fn global_atomic_rmw_or(
-        &mut self,
-        ordering: Ordering,
-        global_index: GlobalIdx,
-    ) -> &mut Self {
+    pub fn global_atomic_rmw_or(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x54);
         ordering.encode(self.sink);
@@ -5198,11 +5020,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicRmwXor`].
-    pub fn global_atomic_rmw_xor(
-        &mut self,
-        ordering: Ordering,
-        global_index: GlobalIdx,
-    ) -> &mut Self {
+    pub fn global_atomic_rmw_xor(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x55);
         ordering.encode(self.sink);
@@ -5211,11 +5029,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::GlobalAtomicRmwXchg`].
-    pub fn global_atomic_rmw_xchg(
-        &mut self,
-        ordering: Ordering,
-        global_index: GlobalIdx,
-    ) -> &mut Self {
+    pub fn global_atomic_rmw_xchg(&mut self, ordering: Ordering, global_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x56);
         ordering.encode(self.sink);
@@ -5227,7 +5041,7 @@ impl<'a> InstructionSink<'a> {
     pub fn global_atomic_rmw_cmpxchg(
         &mut self,
         ordering: Ordering,
-        global_index: GlobalIdx,
+        global_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x57);
@@ -5237,7 +5051,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableAtomicGet`].
-    pub fn table_atomic_get(&mut self, ordering: Ordering, table_index: TableIdx) -> &mut Self {
+    pub fn table_atomic_get(&mut self, ordering: Ordering, table_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x58);
         ordering.encode(self.sink);
@@ -5246,7 +5060,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableAtomicSet`].
-    pub fn table_atomic_set(&mut self, ordering: Ordering, table_index: TableIdx) -> &mut Self {
+    pub fn table_atomic_set(&mut self, ordering: Ordering, table_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x59);
         ordering.encode(self.sink);
@@ -5255,11 +5069,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableAtomicRmwXchg`].
-    pub fn table_atomic_rmw_xchg(
-        &mut self,
-        ordering: Ordering,
-        table_index: TableIdx,
-    ) -> &mut Self {
+    pub fn table_atomic_rmw_xchg(&mut self, ordering: Ordering, table_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5A);
         ordering.encode(self.sink);
@@ -5268,11 +5078,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::TableAtomicRmwCmpxchg`].
-    pub fn table_atomic_rmw_cmpxchg(
-        &mut self,
-        ordering: Ordering,
-        table_index: TableIdx,
-    ) -> &mut Self {
+    pub fn table_atomic_rmw_cmpxchg(&mut self, ordering: Ordering, table_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5B);
         ordering.encode(self.sink);
@@ -5284,8 +5090,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_get(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5C);
@@ -5299,8 +5105,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_get_s(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5D);
@@ -5314,8 +5120,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_get_u(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5E);
@@ -5329,8 +5135,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_set(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x5F);
@@ -5344,8 +5150,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_rmw_add(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x60);
@@ -5359,8 +5165,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_rmw_sub(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x61);
@@ -5374,8 +5180,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_rmw_and(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x62);
@@ -5389,8 +5195,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_rmw_or(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x63);
@@ -5404,8 +5210,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_rmw_xor(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x64);
@@ -5419,8 +5225,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_rmw_xchg(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x65);
@@ -5434,8 +5240,8 @@ impl<'a> InstructionSink<'a> {
     pub fn struct_atomic_rmw_cmpxchg(
         &mut self,
         ordering: Ordering,
-        struct_type_index: TypeIdx,
-        field_index: FieldIdx,
+        struct_type_index: u32,
+        field_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x66);
@@ -5446,7 +5252,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicGet`].
-    pub fn array_atomic_get(&mut self, ordering: Ordering, array_type_index: TypeIdx) -> &mut Self {
+    pub fn array_atomic_get(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x67);
         ordering.encode(self.sink);
@@ -5455,11 +5261,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicGetS`].
-    pub fn array_atomic_get_s(
-        &mut self,
-        ordering: Ordering,
-        array_type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn array_atomic_get_s(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x68);
         ordering.encode(self.sink);
@@ -5468,11 +5270,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicGetU`].
-    pub fn array_atomic_get_u(
-        &mut self,
-        ordering: Ordering,
-        array_type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn array_atomic_get_u(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x69);
         ordering.encode(self.sink);
@@ -5481,7 +5279,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicSet`].
-    pub fn array_atomic_set(&mut self, ordering: Ordering, array_type_index: TypeIdx) -> &mut Self {
+    pub fn array_atomic_set(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x6A);
         ordering.encode(self.sink);
@@ -5490,11 +5288,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicRmwAdd`].
-    pub fn array_atomic_rmw_add(
-        &mut self,
-        ordering: Ordering,
-        array_type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn array_atomic_rmw_add(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x6B);
         ordering.encode(self.sink);
@@ -5503,11 +5297,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicRmwSub`].
-    pub fn array_atomic_rmw_sub(
-        &mut self,
-        ordering: Ordering,
-        array_type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn array_atomic_rmw_sub(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x6C);
         ordering.encode(self.sink);
@@ -5516,11 +5306,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicRmwAnd`].
-    pub fn array_atomic_rmw_and(
-        &mut self,
-        ordering: Ordering,
-        array_type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn array_atomic_rmw_and(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x6D);
         ordering.encode(self.sink);
@@ -5529,11 +5315,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicRmwOr`].
-    pub fn array_atomic_rmw_or(
-        &mut self,
-        ordering: Ordering,
-        array_type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn array_atomic_rmw_or(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x6E);
         ordering.encode(self.sink);
@@ -5542,11 +5324,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::ArrayAtomicRmwXor`].
-    pub fn array_atomic_rmw_xor(
-        &mut self,
-        ordering: Ordering,
-        array_type_index: TypeIdx,
-    ) -> &mut Self {
+    pub fn array_atomic_rmw_xor(&mut self, ordering: Ordering, array_type_index: u32) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x6F);
         ordering.encode(self.sink);
@@ -5558,7 +5336,7 @@ impl<'a> InstructionSink<'a> {
     pub fn array_atomic_rmw_xchg(
         &mut self,
         ordering: Ordering,
-        array_type_index: TypeIdx,
+        array_type_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x70);
@@ -5571,7 +5349,7 @@ impl<'a> InstructionSink<'a> {
     pub fn array_atomic_rmw_cmpxchg(
         &mut self,
         ordering: Ordering,
-        array_type_index: TypeIdx,
+        array_type_index: u32,
     ) -> &mut Self {
         self.sink.push(0xFE);
         self.sink.push(0x71);
@@ -5590,14 +5368,14 @@ impl<'a> InstructionSink<'a> {
     // Stack switching
 
     /// Encode [`Instruction::ContNew`].
-    pub fn cont_new(&mut self, type_index: TypeIdx) -> &mut Self {
+    pub fn cont_new(&mut self, type_index: u32) -> &mut Self {
         self.sink.push(0xE0);
         type_index.encode(self.sink);
         self
     }
 
     /// Encode [`Instruction::ContBind`].
-    pub fn cont_bind(&mut self, argument_index: TypeIdx, result_index: TypeIdx) -> &mut Self {
+    pub fn cont_bind(&mut self, argument_index: u32, result_index: u32) -> &mut Self {
         self.sink.push(0xE1);
         argument_index.encode(self.sink);
         result_index.encode(self.sink);
@@ -5605,7 +5383,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Suspend`].
-    pub fn suspend(&mut self, tag_index: TagIdx) -> &mut Self {
+    pub fn suspend(&mut self, tag_index: u32) -> &mut Self {
         self.sink.push(0xE2);
         tag_index.encode(self.sink);
         self
@@ -5614,7 +5392,7 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::Resume`].
     pub fn resume(
         &mut self,
-        cont_type_index: TypeIdx,
+        cont_type_index: u32,
         resume_table: impl IntoIterator<Item = Handle, IntoIter: ExactSizeIterator>,
     ) -> &mut Self {
         self.sink.push(0xE3);
@@ -5626,8 +5404,8 @@ impl<'a> InstructionSink<'a> {
     /// Encode [`Instruction::ResumeThrow`].
     pub fn resume_throw(
         &mut self,
-        cont_type_index: TypeIdx,
-        tag_index: TagIdx,
+        cont_type_index: u32,
+        tag_index: u32,
         resume_table: impl IntoIterator<Item = Handle, IntoIter: ExactSizeIterator>,
     ) -> &mut Self {
         self.sink.push(0xE4);
@@ -5638,7 +5416,7 @@ impl<'a> InstructionSink<'a> {
     }
 
     /// Encode [`Instruction::Switch`].
-    pub fn switch(&mut self, cont_type_index: TypeIdx, tag_index: TagIdx) -> &mut Self {
+    pub fn switch(&mut self, cont_type_index: u32, tag_index: u32) -> &mut Self {
         self.sink.push(0xE5);
         cont_type_index.encode(self.sink);
         tag_index.encode(self.sink);

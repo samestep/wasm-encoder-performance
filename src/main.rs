@@ -91,24 +91,17 @@ fn main() -> anyhow::Result<()> {
                     }
                     first = false;
                     if let Some(ty) = retype(name.unwrap(), arg) {
-                        if ty.starts_with("impl ") {
-                            match name.unwrap() {
-                                "BrTable" => write!(out, "ls.iter().copied().map(LabelIdx)")?,
-                                "Resume" | "ResumeThrow" => {
-                                    write!(out, "resume_table.iter().cloned()")?
-                                }
-                                "TryTable" => write!(out, "catches.iter().cloned()")?,
-                                instruction => panic!("{instruction}"),
+                        assert!(ty.starts_with("impl "));
+                        match name.unwrap() {
+                            "BrTable" => write!(out, "ls.iter().copied()")?,
+                            "Resume" | "ResumeThrow" => {
+                                write!(out, "resume_table.iter().cloned()")?
                             }
-                            fix.push('$');
-                            fix.push_str(&arg.to_uppercase());
-                        } else {
-                            write!(out, "{ty}({arg})")?;
-                            fix.push_str(ty);
-                            fix.push_str("($");
-                            fix.push_str(&arg.to_uppercase());
-                            fix.push(')');
+                            "TryTable" => write!(out, "catches.iter().cloned()")?,
+                            instruction => panic!("{instruction}"),
                         }
+                        fix.push('$');
+                        fix.push_str(&arg.to_uppercase());
                     } else {
                         write!(out, "{arg}")?;
                         fix.push('$');
@@ -262,22 +255,68 @@ fn split(s: &str) -> Vec<&str> {
         .collect()
 }
 
+fn typeidx() -> Option<&'static str> {
+    None
+}
+
+fn funcidx() -> Option<&'static str> {
+    None
+}
+
+fn tableidx() -> Option<&'static str> {
+    None
+}
+
+fn memidx() -> Option<&'static str> {
+    None
+}
+
+fn tagidx() -> Option<&'static str> {
+    None
+}
+
+fn globalidx() -> Option<&'static str> {
+    None
+}
+
+fn elemidx() -> Option<&'static str> {
+    None
+}
+
+fn dataidx() -> Option<&'static str> {
+    None
+}
+
+fn localidx() -> Option<&'static str> {
+    None
+}
+
+fn labelidx() -> Option<&'static str> {
+    None
+}
+
+fn fieldidx() -> Option<&'static str> {
+    None
+}
+
 fn retype(instruction: &str, param: &str) -> Option<&'static str> {
     let ty = match instruction {
-        "DataDrop" => "DataIdx",
-        "ElemDrop" => "ElemIdx",
-        "Call" | "RefFunc" | "ReturnCall" => "FuncIdx",
-        "GlobalGet" | "GlobalSet" => "GlobalIdx",
-        "Br" | "BrIf" | "BrOnNull" | "BrOnNonNull" | "Delegate" | "Rethrow" => "LabelIdx",
-        "LocalGet" | "LocalSet" | "LocalTee" => "LocalIdx",
+        "DataDrop" => return dataidx(),
+        "ElemDrop" => return elemidx(),
+        "Call" | "RefFunc" | "ReturnCall" => return funcidx(),
+        "GlobalGet" | "GlobalSet" => return globalidx(),
+        "Br" | "BrIf" | "BrOnNull" | "BrOnNonNull" | "Delegate" | "Rethrow" => return labelidx(),
+        "LocalGet" | "LocalSet" | "LocalTee" => return localidx(),
         "TableFill" | "TableSet" | "TableGet" | "TableGrow" | "TableSize" | "TableCopy" => {
-            "TableIdx"
+            return tableidx()
         }
-        "MemoryCopy" | "MemoryDiscard" | "MemoryFill" | "MemoryGrow" | "MemorySize" => "MemIdx",
-        "Catch" | "Suspend" | "Throw" => "TagIdx",
+        "MemoryCopy" | "MemoryDiscard" | "MemoryFill" | "MemoryGrow" | "MemorySize" => {
+            return memidx()
+        }
+        "Catch" | "Suspend" | "Throw" => return tagidx(),
         "ArrayCopy" | "ArrayFill" | "ArrayGet" | "ArrayGetS" | "ArrayGetU" | "ArrayNew"
         | "ArrayNewDefault" | "ArraySet" | "CallRef" | "ContBind" | "ContNew" | "ReturnCallRef"
-        | "StructNew" | "StructNewDefault" => "TypeIdx",
+        | "StructNew" | "StructNewDefault" => return typeidx(),
         "ArrayAtomicGet"
         | "ArrayAtomicGetS"
         | "ArrayAtomicGetU"
@@ -289,32 +328,32 @@ fn retype(instruction: &str, param: &str) -> Option<&'static str> {
         | "ArrayAtomicRmwXor"
         | "ArrayAtomicRmwXchg"
         | "ArrayAtomicRmwCmpxchg" => match param {
-            "array_type_index" => "TypeIdx",
+            "array_type_index" => return typeidx(),
             "ordering" => return None,
             _ => panic!("{param}"),
         },
         "ArrayInitData" | "ArrayInitElem" | "ArrayNewFixed" | "ArrayNewData" | "ArrayNewElem" => {
             match param {
-                "array_data_index" => "DataIdx",
-                "array_elem_index" => "ElemIdx",
+                "array_data_index" => return dataidx(),
+                "array_elem_index" => return elemidx(),
                 "array_size" => return None,
-                "array_type_index" => "TypeIdx",
+                "array_type_index" => return typeidx(),
                 _ => panic!("{param}"),
             }
         }
         "BrOnCast" | "BrOnCastFail" => match param {
             "from_ref_type" | "to_ref_type" => return None,
-            "relative_depth" => "LabelIdx",
+            "relative_depth" => return labelidx(),
             _ => panic!("{param}"),
         },
         "BrTable" => match param {
-            "l" => "LabelIdx",
-            "ls" => "impl IntoIterator<Item = LabelIdx, IntoIter: ExactSizeIterator>",
+            "l" => return labelidx(),
+            "ls" => "impl IntoIterator<Item = u32, IntoIter: ExactSizeIterator>",
             _ => panic!("{param}"),
         },
         "CallIndirect" | "ReturnCallIndirect" => match param {
-            "table_index" => "TableIdx",
-            "type_index" => "TypeIdx",
+            "table_index" => return tableidx(),
+            "type_index" => return typeidx(),
             _ => panic!("{param}"),
         },
         "GlobalAtomicGet"
@@ -326,19 +365,19 @@ fn retype(instruction: &str, param: &str) -> Option<&'static str> {
         | "GlobalAtomicRmwXor"
         | "GlobalAtomicRmwXchg"
         | "GlobalAtomicRmwCmpxchg" => match param {
-            "global_index" => "GlobalIdx",
+            "global_index" => return globalidx(),
             "ordering" => return None,
             _ => panic!("{param}"),
         },
         "MemoryInit" => match param {
-            "data_index" => "DataIdx",
-            "mem" => "MemIdx",
+            "data_index" => return dataidx(),
+            "mem" => return memidx(),
             _ => panic!("{param}"),
         },
         "Resume" | "ResumeThrow" | "Switch" => match param {
-            "cont_type_index" => "TypeIdx",
+            "cont_type_index" => return typeidx(),
             "resume_table" => "impl IntoIterator<Item = Handle, IntoIter: ExactSizeIterator>",
-            "tag_index" => "TagIdx",
+            "tag_index" => return tagidx(),
             _ => panic!("{param}"),
         },
         "StructAtomicGet"
@@ -352,26 +391,26 @@ fn retype(instruction: &str, param: &str) -> Option<&'static str> {
         | "StructAtomicRmwXor"
         | "StructAtomicRmwXchg"
         | "StructAtomicRmwCmpxchg" => match param {
-            "field_index" => "FieldIdx",
+            "field_index" => return fieldidx(),
             "ordering" => return None,
-            "struct_type_index" => "TypeIdx",
+            "struct_type_index" => return typeidx(),
             _ => panic!("{param}"),
         },
         "StructGet" | "StructGetS" | "StructGetU" | "StructSet" => match param {
-            "field_index" => "FieldIdx",
-            "struct_type_index" => "TypeIdx",
+            "field_index" => return fieldidx(),
+            "struct_type_index" => return typeidx(),
             _ => panic!("{param}"),
         },
         "TableAtomicGet" | "TableAtomicSet" | "TableAtomicRmwXchg" | "TableAtomicRmwCmpxchg" => {
             match param {
                 "ordering" => return None,
-                "table_index" => "TableIdx",
+                "table_index" => return tableidx(),
                 _ => panic!("{param}"),
             }
         }
         "TableInit" => match param {
-            "elem_index" => "ElemIdx",
-            "table" => "TableIdx",
+            "elem_index" => return elemidx(),
+            "table" => return tableidx(),
             _ => panic!("{param}"),
         },
         "TryTable" => match param {
