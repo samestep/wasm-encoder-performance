@@ -31,7 +31,7 @@ I pulled some [code to generate Wasm helper functions](https://github.com/samest
 
 ## Overview
 
-At time of writing, wasm-encoder is at [version 0.223.0](https://crates.io/crates/wasm-encoder/0.223.0). The crate documentation gives code examples that generally look like this, using the [`Function`](https://docs.rs/wasm-encoder/0.223.0/wasm_encoder/struct.Function.html) type:
+At time of writing, wasm-encoder is at [version 0.225.0](https://crates.io/crates/wasm-encoder/0.225.0). The crate documentation gives code examples that generally look like this, using the [`Function`](https://docs.rs/wasm-encoder/0.225.0/wasm_encoder/struct.Function.html) type:
 
 ```rust
 use wasm_encoder::{Function, Instruction};
@@ -43,7 +43,7 @@ f.instruction(&Instruction::I32Add);
 f.instruction(&Instruction::End);
 ```
 
-Another option is to just use the [`Encode`](https://docs.rs/wasm-encoder/0.223.0/wasm_encoder/trait.Encode.html) trait directly:
+Another option is to just use the [`Encode`](https://docs.rs/wasm-encoder/0.225.0/wasm_encoder/trait.Encode.html) trait directly:
 
 ```rust
 use wasm_encoder::{Encode, Instruction};
@@ -55,7 +55,7 @@ Instruction::I32Add.encode(&mut sink);
 Instruction::End.encode(&mut sink);
 ```
 
-Either way, every time an instruction is encoded, it goes through [`impl Encode for Instruction<'_>`](https://github.com/bytecodealliance/wasm-tools/blob/v1.223.0/crates/wasm-encoder/src/core/code.rs#L1236-L1238), which is a big `match` expression:
+Either way, every time an instruction is encoded, it goes through [`impl Encode for Instruction<'_>`](https://github.com/bytecodealliance/wasm-tools/blob/v1.225.0/crates/wasm-encoder/src/core/code.rs#L1236-L1238), which is a big `match` expression:
 
 ```rust
 impl Encode for Instruction<'_> {
@@ -127,7 +127,7 @@ f.sink()
 
 As an aside, this also happens to result in more concise code.
 
-The files `src/variants.txt` and `src/encodings.txt` were manually adapted from [`crates/wasm-encoder/src/core/code.rs` in the wasm-tools repo](https://github.com/bytecodealliance/wasm-tools/blob/7530629a3a127a1429b4837a1b1632f11d3dfeea/crates/wasm-encoder/src/core/code.rs), and feed into a code generator script that you can run like this:
+The files `src/variants.txt` and `src/encodings.txt` were manually adapted from [`crates/wasm-encoder/src/core/code.rs` in the wasm-tools repo](https://github.com/bytecodealliance/wasm-tools/blob/v1.225.0/crates/wasm-encoder/src/core/code.rs), and feed into a code generator script that you can run like this:
 
 ```sh
 cargo run
